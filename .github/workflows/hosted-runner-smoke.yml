@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/hosted-runner-smoke.yml'
+      - 'ci/runner-control.trigger'
   workflow_dispatch:
 
 permissions:
