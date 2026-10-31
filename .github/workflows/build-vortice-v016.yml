@@ -83,6 +83,7 @@ jobs:
           python3 branding-repo/patches/vortise_voice_keyboard_v015.py src
           python3 branding-repo/patches/vortise_music_genre_albums_v016.py src
           python3 branding-repo/patches/vortise_music_stability_v016.py src
+          python3 branding-repo/patches/vortise_music_no_restart_v016.py src
 
           python3 - <<'PY'
           from pathlib import Path
@@ -135,6 +136,9 @@ jobs:
           grep -F 'class VorticeLoadControl' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt
           grep -F '8_000_000L else 5_000_000L' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt
           grep -F '1..192_000' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Sources.kt
+          grep -F 'if (Session.musicMode)' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Progress.kt
+          grep -F 'if (Session.musicMode) return' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Recovery.kt
+          grep -F 'musicFloor = maxOf(musicFloor, current)' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Recovery.kt
           grep -F '"pt", "pt-br" -> "pt-BR"' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/input/Voice.kt
           grep -F 'Layout("pt", "Português", listOf("abcdefg"' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/input/Layouts.kt
 
