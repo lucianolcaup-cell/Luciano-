@@ -23,9 +23,11 @@ rw(pages, 'listOf(home, music.grid, openChannels, popular.grid, favs.grid)',
           'listOf(home, music.grid, openChannels.grid, popular.grid, favs.grid)')
 rw(pages, 'is Grid -> v.focused(); is MusicPage -> v.grid.focused();',
           'is Grid -> v.focused(); is MusicPage -> v.grid.focused(); is OpenChannelsPage -> v.grid.focused();')
-rw(pages, '            is SearchPage -> v.lit(on)\n',
-          '            is SearchPage -> v.lit(on)\n            is OpenChannelsPage -> v.lit(on)\n')
-rw(pages, '        is Grid -> v.key(code); is PopularPage -> v.key(code); is FavsPage -> v.key(code); is SearchPage -> v.key(code); is TimelineView -> v.key(code)\n',
-          '        is Grid -> v.key(code); is OpenChannelsPage -> v.key(code); is PopularPage -> v.key(code); is FavsPage -> v.key(code); is SearchPage -> v.key(code); is TimelineView -> v.key(code)\n')
+rw(pages,
+   'is Grid -> { v.lit = on; v.invalidate() }; is SearchPage -> v.lit(on); is MusicPage -> v.lit(on); is FavsPage -> v.lit(on); is PopularPage -> v.lit(on);',
+   'is Grid -> { v.lit = on; v.invalidate() }; is SearchPage -> v.lit(on); is MusicPage -> v.lit(on); is OpenChannelsPage -> v.lit(on); is FavsPage -> v.lit(on); is PopularPage -> v.lit(on);')
+rw(pages,
+   'is Grid -> v.key(code); is MusicPage -> v.key(code); is PopularPage -> v.key(code);',
+   'is Grid -> v.key(code); is MusicPage -> v.key(code); is OpenChannelsPage -> v.key(code); is PopularPage -> v.key(code);')
 
 print("VorticeTv v0.1.4 categorized open channels patch applied")
