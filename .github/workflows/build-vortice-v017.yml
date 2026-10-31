@@ -1,0 +1,182 @@
+name: Build VórticeTv v0.1.7
+
+on:
+  push:
+    branches: [ vortise-tv-v0.1.7-movies-player ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout VórticeTv customization
+        uses: actions/checkout@v4
+        with:
+          path: branding-repo
+
+      - name: Checkout PipeTV upstream
+        uses: actions/checkout@v4
+        with:
+          repository: LimitedIO/PipeTv
+          ref: main
+          path: src
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prepare VórticeTv branding and features
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet pillow
+          cd src
+          sed -i 's/applicationId = "dev.limitedio.pipetv"/applicationId = "br.com.luciano.noutubetv"/' app/build.gradle.kts
+          sed -i 's/android:label="PipeTv"/android:label="VórticeTv"/' app/src/main/AndroidManifest.xml
+          rm -f app/src/main/res/drawable-xhdpi/icon.png app/src/main/res/drawable-xhdpi/banner.png
+          base64 -d ../branding-repo/branding/vortise_icon.b64 > app/src/main/res/drawable-xhdpi/icon.jpg
+          python3 - <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          from pathlib import Path
+          out = Path('app/src/main/res/drawable-xhdpi/banner.jpg')
+          icon = Image.open('app/src/main/res/drawable-xhdpi/icon.jpg').convert('RGB').resize((118, 118), Image.Resampling.LANCZOS)
+          banner = Image.new('RGB', (320, 180), (2, 6, 20))
+          banner.paste(icon, (8, 31))
+          draw = ImageDraw.Draw(banner)
+          font_main = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 25)
+          font_sub = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 9)
+          font_tv = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 12)
+          draw.text((135, 49), 'VÓRTICETV', font=font_main, fill=(242, 244, 248))
+          draw.text((136, 88), 'VIDEO • MUSIC • STREAMING', font=font_sub, fill=(20, 220, 245))
+          draw.line((136, 112, 304, 112), fill=(112, 55, 255), width=2)
+          draw.text((136, 123), 'ANDROID TV', font=font_tv, fill=(185, 190, 210))
+          banner.save(out, quality=92, optimize=True)
+          PY
+          cd ..
+
+          python3 - <<'PY'
+          from pathlib import Path
+          for name, marker in [
+              ('vortise_v012.py', 'root.tab < 5'),
+              ('vortise_v012_channels.py', 'root.tab < 6'),
+          ]:
+              p = Path('branding-repo/patches') / name
+              lines = p.read_text(encoding='utf-8').splitlines()
+              lines = [line for line in lines if not ('replace(controls' in line and marker in line)]
+              p.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
+
+          python3 branding-repo/patches/vortise_v012.py src
+          python3 branding-repo/patches/vortise_v012_channels.py src
+          python3 branding-repo/patches/vortise_music_free_v012.py src
+          python3 branding-repo/patches/vortise_voice_v013.py src
+          python3 branding-repo/patches/vortise_music_playback_v014.py src
+          python3 branding-repo/patches/vortise_music_search_v014.py src
+          python3 branding-repo/patches/vortise_channels_v014.py src
+          python3 branding-repo/patches/vortise_voice_keyboard_v015.py src
+          python3 branding-repo/patches/vortise_music_genre_albums_v016.py src
+          python3 branding-repo/patches/vortise_music_stability_v016.py src
+          python3 branding-repo/patches/vortise_music_no_restart_v016.py src
+          python3 branding-repo/patches/vortise_channels_live_v016.py src
+          python3 branding-repo/patches/vortise_movies_player_v017.py src
+
+          python3 - <<'PY'
+          from pathlib import Path
+          controls = Path('src/app/src/main/kotlin/dev/limitedio/pipetv/ui/Controls.kt')
+          s = controls.read_text(encoding='utf-8')
+          old = 'root.tab < 5'
+          if old not in s:
+              raise SystemExit('Controls navigation threshold not found')
+          controls.write_text(s.replace(old, 'root.tab < 7', 1), encoding='utf-8')
+
+          engine = Path('src/app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt')
+          s = engine.read_text(encoding='utf-8')
+          if 'import dev.limitedio.pipetv.Bg' not in s:
+              s = s.replace('import dev.limitedio.pipetv.App\n', 'import dev.limitedio.pipetv.App\nimport dev.limitedio.pipetv.Bg\n', 1)
+          engine.write_text(s, encoding='utf-8')
+
+          grid = Path('src/app/src/main/kotlin/dev/limitedio/pipetv/ui/Grid.kt')
+          s = grid.read_text(encoding='utf-8')
+          if 'open class Grid(' not in s:
+              s = s.replace('class Grid(', 'open class Grid(', 1)
+          grid.write_text(s, encoding='utf-8')
+
+          nav = Path('src/app/src/main/kotlin/dev/limitedio/pipetv/ui/Nav.kt')
+          s = nav.read_text(encoding='utf-8').replace('Txt.draw(c, "PipeTv",', 'Txt.draw(c, "VórticeTv",')
+          nav.write_text(s, encoding='utf-8')
+
+          settings = Path('src/app/src/main/kotlin/dev/limitedio/pipetv/ui/Settings.kt')
+          s = settings.read_text(encoding='utf-8').replace('"PipeTv ${Updater.current} · LimitedIO"', '"VórticeTv ${Updater.current} · base PipeTV/LimitedIO"')
+          settings.write_text(s, encoding='utf-8')
+
+          for lang in ['Pt.kt', 'En.kt']:
+              p = Path('src/app/src/main/kotlin/dev/limitedio/pipetv/i18n/lang') / lang
+              s = p.read_text(encoding='utf-8').replace('PipeTv', 'VórticeTv')
+              p.write_text(s, encoding='utf-8')
+          PY
+
+          chmod +x src/gradlew
+
+      - name: Static sanity checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'MOVIE_LIMIT = 600' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/PopularPage.kt
+          grep -F 'grid.onMore' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/PopularPage.kt
+          grep -F 'p.loadMore()' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/PopularPage.kt
+          grep -F 'it.dur >= 35L * 60L' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/PopularPage.kt
+          grep -F 'Scrollbar.draw' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/Grid.kt
+          grep -F 'var longForm = false' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Session.kt
+          grep -F 'if (!musicMode && !longForm) SponsorBlock.load(it.id)' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Session.kt
+          grep -F '!Session.musicMode && !Session.longForm' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt
+          grep -F 'private var stallStage = 0' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Recovery.kt
+          grep -F 'Session.safe = maxOf(Session.safe, 2)' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Recovery.kt
+          grep -F 'types.select(2)' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/MusicPage.kt
+          grep -F 'Sources.buildAudio' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Session.kt
+          grep -F 'if (Session.musicMode)' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Progress.kt
+          grep -F '"Esportes"' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/OpenChannelsPage.kt
+          grep -F 'actuallyLive' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/OpenChannelsPage.kt
+          grep -F '"pt", "pt-br" -> "pt-BR"' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/input/Voice.kt
+          grep -F 'Layout("pt", "Português", listOf("abcdefg"' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/input/Layouts.kt
+
+      - name: Verify Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}"
+          test -d "$ANDROID_HOME"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+
+      - name: Run tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          ./gradlew testDebugUnitTest -Pnoupdater -Pvname=0.1.7 -Pvcode=8 --stacktrace
+
+      - name: Build installable APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          ./gradlew assembleDebug -Pnoupdater -Pvname=0.1.7 -Pvcode=8 --stacktrace
+          mkdir -p ../out
+          cp app/build/outputs/apk/debug/app-debug.apk ../out/VorticeTv-v0.1.7-TESTE.apk
+          sha256sum ../out/VorticeTv-v0.1.7-TESTE.apk | tee ../out/SHA256.txt
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VorticeTv-v0.1.7-TESTE
+          path: |
+            out/VorticeTv-v0.1.7-TESTE.apk
+            out/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
