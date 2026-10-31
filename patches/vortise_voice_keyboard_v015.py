@@ -102,7 +102,6 @@ object Voice {
             .putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 8)
-            // Longer windows are important with TV remotes several metres away.
             .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 5_000L)
             .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2_800L)
             .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2_000L)
@@ -154,7 +153,6 @@ object Voice {
             error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT ||
             error == SpeechRecognizer.ERROR_NETWORK
 
-        // Two retries: first fast, second slightly longer to let the remote / recognizer recover.
         if (transient && retries < 2) {
             retries++
             val token = generation
@@ -179,7 +177,6 @@ object Voice {
         }
 
         override fun onRmsChanged(rmsdB: Float) {
-            // Visual mapping for low-RMS TV microphones. Does not fake recognition gain.
             level = ((rmsdB + 12f) / 18f).coerceIn(0f, 1f)
             onState()
         }
@@ -222,8 +219,6 @@ object Voice {
 
 # 3) Brand the generic search hint as VórticeTv in Portuguese.
 pt = "app/src/main/kotlin/dev/limitedio/pipetv/i18n/lang/Pt.kt"
-s = read(pt)
-s = s.replace('K.SEARCH_HINT to "Pesquisar no YouTube"', 'K.SEARCH_HINT to "Pesquisar no VórticeTv"')
-write(pt, s)
+replace(pt, 'SEARCH_HINT to "Pesquisar no YouTube"', 'SEARCH_HINT to "Pesquisar no VórticeTv"')
 
 print("VórticeTv v0.1.5 voice + alphabetical PT keyboard patch applied")
