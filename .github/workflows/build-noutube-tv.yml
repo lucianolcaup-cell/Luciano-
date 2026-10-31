@@ -2,7 +2,7 @@ name: Build Vórtise TV
 
 on:
   push:
-    branches: [ vortise-tv-v0.1.1 ]
+    branches: [ vortise-tv-v0.1.2-dev ]
   workflow_dispatch:
 
 permissions:
@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout branding
+      - name: Checkout Vórtise customization
         uses: actions/checkout@v4
         with:
           path: branding-repo
@@ -32,7 +32,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Prepare Vórtise TV branding
+      - name: Prepare Vórtise TV branding and features
         shell: bash
         run: |
           set -euo pipefail
@@ -60,7 +60,10 @@ jobs:
           draw.text((149, 126), 'ANDROID TV', font=font_tv, fill=(185, 190, 210))
           banner.save(out, quality=92, optimize=True)
           PY
-          chmod +x gradlew
+          cd ..
+          python3 branding-repo/patches/vortise_v012.py src
+          python3 branding-repo/patches/vortise_v012_channels.py src
+          chmod +x src/gradlew
 
       - name: Verify Android SDK
         shell: bash
@@ -69,22 +72,29 @@ jobs:
           test -d "$ANDROID_HOME"
           echo "ANDROID_HOME=$ANDROID_HOME"
 
+      - name: Run tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          ./gradlew testDebugUnitTest -Pnoupdater -Pvname=0.1.2 -Pvcode=3 --stacktrace
+
       - name: Build installable APK
         shell: bash
         run: |
           set -euo pipefail
           cd src
-          ./gradlew assembleDebug -Pnoupdater -Pvname=0.1.1 -Pvcode=2 --stacktrace
+          ./gradlew assembleDebug -Pnoupdater -Pvname=0.1.2 -Pvcode=3 --stacktrace
           mkdir -p ../out
-          cp app/build/outputs/apk/debug/app-debug.apk ../out/Vortise-TV-v0.1.1-TESTE.apk
-          sha256sum ../out/Vortise-TV-v0.1.1-TESTE.apk | tee ../out/SHA256.txt
+          cp app/build/outputs/apk/debug/app-debug.apk ../out/Vortise-TV-v0.1.2-TESTE.apk
+          sha256sum ../out/Vortise-TV-v0.1.2-TESTE.apk | tee ../out/SHA256.txt
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Vortise-TV-v0.1.1-TESTE
+          name: Vortise-TV-v0.1.2-TESTE
           path: |
-            out/Vortise-TV-v0.1.1-TESTE.apk
+            out/Vortise-TV-v0.1.2-TESTE.apk
             out/SHA256.txt
           if-no-files-found: error
           retention-days: 30
