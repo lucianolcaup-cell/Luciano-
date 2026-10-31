@@ -171,54 +171,7 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: |
-            set -u
-            adb install -r out/VorticeTv-v0.1.10-TESTE.apk || exit 1
-            adb logcat -c
-            adb shell am force-stop br.com.luciano.noutubetv
-            adb shell am start -W -n br.com.luciano.noutubetv/dev.limitedio.pipetv.MainActivity || exit 1
-            sleep 10
-            PID0="$(adb shell pidof br.com.luciano.noutubetv | tr -d '\r')"
-            if [ -z "$PID0" ]; then
-              adb logcat -d -v time > out/runtime-smoke-log.txt
-              grep -A 40 'FATAL EXCEPTION' out/runtime-smoke-log.txt || true
-              exit 1
-            fi
-
-            adb shell input keyevent 23
-            sleep 5
-            PID1="$(adb shell pidof br.com.luciano.noutubetv | tr -d '\r')"
-            if [ -z "$PID1" ]; then
-              adb logcat -d -v time > out/runtime-smoke-log.txt
-              grep -A 40 'FATAL EXCEPTION' out/runtime-smoke-log.txt || true
-              exit 1
-            fi
-
-            adb shell input keyevent 21
-            sleep 1
-            adb shell input keyevent 20
-            adb shell input keyevent 20
-            adb shell input keyevent 20
-            adb shell input keyevent 20
-            adb shell input keyevent 22
-            sleep 8
-            adb shell input keyevent 23
-            sleep 2
-            adb shell input keyevent 23
-            sleep 6
-
-            PID2="$(adb shell pidof br.com.luciano.noutubetv | tr -d '\r')"
-            adb logcat -d -v time > out/runtime-smoke-log.txt
-            if [ -z "$PID2" ]; then
-              echo 'App process died after selecting content' >&2
-              grep -A 60 'FATAL EXCEPTION' out/runtime-smoke-log.txt >&2 || true
-              exit 1
-            fi
-            if grep -A 24 'FATAL EXCEPTION' out/runtime-smoke-log.txt | grep -q 'br.com.luciano.noutubetv'; then
-              echo 'Runtime crash detected' >&2
-              grep -A 60 'FATAL EXCEPTION' out/runtime-smoke-log.txt >&2 || true
-              exit 1
-            fi
+          script: sh branding-repo/scripts/runtime-smoke-v0110.sh
 
       - name: Upload APK and runtime diagnostics
         if: always()
