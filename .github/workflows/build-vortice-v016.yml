@@ -84,6 +84,7 @@ jobs:
           python3 branding-repo/patches/vortise_music_genre_albums_v016.py src
           python3 branding-repo/patches/vortise_music_stability_v016.py src
           python3 branding-repo/patches/vortise_music_no_restart_v016.py src
+          python3 branding-repo/patches/vortise_channels_live_v016.py src
 
           python3 - <<'PY'
           from pathlib import Path
@@ -139,6 +140,12 @@ jobs:
           grep -F 'if (Session.musicMode)' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Progress.kt
           grep -F 'if (Session.musicMode) return' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Recovery.kt
           grep -F 'musicFloor = maxOf(musicFloor, current)' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Recovery.kt
+          grep -F '"Esportes"' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/OpenChannelsPage.kt
+          grep -F 'World Surf League LIVE' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/OpenChannelsPage.kt
+          grep -F 'Band Jornalismo transmissão ao vivo' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/OpenChannelsPage.kt
+          grep -F 'CNN Brasil AO VIVO' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/OpenChannelsPage.kt
+          grep -F 'actuallyLive' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/OpenChannelsPage.kt
+          grep -F 'cacheTtlMs = 90_000L' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/OpenChannelsPage.kt
           grep -F '"pt", "pt-br" -> "pt-BR"' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/input/Voice.kt
           grep -F 'Layout("pt", "Português", listOf("abcdefg"' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/input/Layouts.kt
 
