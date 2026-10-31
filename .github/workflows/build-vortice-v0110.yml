@@ -172,18 +172,28 @@ jobs:
           target: google_apis
           disable-animations: true
           script: |
-            set -eu
-            adb install -r out/VorticeTv-v0.1.10-TESTE.apk
+            set -u
+            adb install -r out/VorticeTv-v0.1.10-TESTE.apk || exit 1
             adb logcat -c
             adb shell am force-stop br.com.luciano.noutubetv
-            adb shell am start -W -n br.com.luciano.noutubetv/dev.limitedio.pipetv.MainActivity
+            adb shell am start -W -n br.com.luciano.noutubetv/dev.limitedio.pipetv.MainActivity || exit 1
             sleep 10
-            test -n "$(adb shell pidof br.com.luciano.noutubetv | tr -d '\r')"
+            PID0="$(adb shell pidof br.com.luciano.noutubetv | tr -d '\r')"
+            if [ -z "$PID0" ]; then
+              adb logcat -d -v time > out/runtime-smoke-log.txt
+              grep -A 40 'FATAL EXCEPTION' out/runtime-smoke-log.txt || true
+              exit 1
+            fi
 
-            # Exercise OK on initial content, then navigate by D-pad to Em alta and select content.
             adb shell input keyevent 23
             sleep 5
-            test -n "$(adb shell pidof br.com.luciano.noutubetv | tr -d '\r')"
+            PID1="$(adb shell pidof br.com.luciano.noutubetv | tr -d '\r')"
+            if [ -z "$PID1" ]; then
+              adb logcat -d -v time > out/runtime-smoke-log.txt
+              grep -A 40 'FATAL EXCEPTION' out/runtime-smoke-log.txt || true
+              exit 1
+            fi
+
             adb shell input keyevent 21
             sleep 1
             adb shell input keyevent 20
@@ -196,16 +206,22 @@ jobs:
             sleep 2
             adb shell input keyevent 23
             sleep 6
-            test -n "$(adb shell pidof br.com.luciano.noutubetv | tr -d '\r')"
 
+            PID2="$(adb shell pidof br.com.luciano.noutubetv | tr -d '\r')"
             adb logcat -d -v time > out/runtime-smoke-log.txt
-            if grep -A 16 'FATAL EXCEPTION' out/runtime-smoke-log.txt | grep -q 'br.com.luciano.noutubetv'; then
+            if [ -z "$PID2" ]; then
+              echo 'App process died after selecting content' >&2
+              grep -A 60 'FATAL EXCEPTION' out/runtime-smoke-log.txt >&2 || true
+              exit 1
+            fi
+            if grep -A 24 'FATAL EXCEPTION' out/runtime-smoke-log.txt | grep -q 'br.com.luciano.noutubetv'; then
               echo 'Runtime crash detected' >&2
-              grep -A 20 'FATAL EXCEPTION' out/runtime-smoke-log.txt >&2
+              grep -A 60 'FATAL EXCEPTION' out/runtime-smoke-log.txt >&2 || true
               exit 1
             fi
 
-      - name: Upload APK
+      - name: Upload APK and runtime diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: VorticeTv-v0.1.10-TESTE
@@ -213,5 +229,5 @@ jobs:
             out/VorticeTv-v0.1.10-TESTE.apk
             out/SHA256.txt
             out/runtime-smoke-log.txt
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
