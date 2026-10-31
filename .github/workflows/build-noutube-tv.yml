@@ -2,7 +2,7 @@ name: Build VórticeTv
 
 on:
   push:
-    branches: [ vortise-tv-v0.1.2-dev ]
+    branches: [ vortise-tv-v0.1.3-fix ]
   workflow_dispatch:
 
 permissions:
@@ -62,7 +62,6 @@ jobs:
           PY
           cd ..
 
-          # Remove formatting-dependent navigation replacements from local patch copies.
           python3 - <<'PY'
           from pathlib import Path
           for name, marker in [
@@ -78,8 +77,8 @@ jobs:
           python3 branding-repo/patches/vortise_v012.py src
           python3 branding-repo/patches/vortise_v012_channels.py src
           python3 branding-repo/patches/vortise_music_free_v012.py src
+          python3 branding-repo/patches/vortise_voice_v013.py src
 
-          # Deterministic compile fixes and final VórticeTv branding.
           python3 - <<'PY'
           from pathlib import Path
 
@@ -130,24 +129,24 @@ jobs:
         run: |
           set -euo pipefail
           cd src
-          ./gradlew testDebugUnitTest -Pnoupdater -Pvname=0.1.2 -Pvcode=3 --stacktrace
+          ./gradlew testDebugUnitTest -Pnoupdater -Pvname=0.1.3 -Pvcode=4 --stacktrace
 
       - name: Build installable APK
         shell: bash
         run: |
           set -euo pipefail
           cd src
-          ./gradlew assembleDebug -Pnoupdater -Pvname=0.1.2 -Pvcode=3 --stacktrace
+          ./gradlew assembleDebug -Pnoupdater -Pvname=0.1.3 -Pvcode=4 --stacktrace
           mkdir -p ../out
-          cp app/build/outputs/apk/debug/app-debug.apk ../out/VorticeTv-v0.1.2-TESTE.apk
-          sha256sum ../out/VorticeTv-v0.1.2-TESTE.apk | tee ../out/SHA256.txt
+          cp app/build/outputs/apk/debug/app-debug.apk ../out/VorticeTv-v0.1.3-TESTE.apk
+          sha256sum ../out/VorticeTv-v0.1.3-TESTE.apk | tee ../out/SHA256.txt
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VorticeTv-v0.1.2-TESTE
+          name: VorticeTv-v0.1.3-TESTE
           path: |
-            out/VorticeTv-v0.1.2-TESTE.apk
+            out/VorticeTv-v0.1.3-TESTE.apk
             out/SHA256.txt
           if-no-files-found: error
           retention-days: 30
