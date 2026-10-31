@@ -61,7 +61,29 @@ jobs:
           banner.save(out, quality=92, optimize=True)
           PY
           cd ..
+
+          # Upstream formatting can change. Remove the fragile nav-count replacement from the main patch,
+          # then apply that single change deterministically before the channels patch shifts it again.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('branding-repo/patches/vortise_v012.py')
+          lines = p.read_text(encoding='utf-8').splitlines()
+          lines = [line for line in lines if not ('replace(controls' in line and 'root.tab < 5' in line)]
+          p.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
+
           python3 branding-repo/patches/vortise_v012.py src
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/app/src/main/kotlin/dev/limitedio/pipetv/ui/Controls.kt')
+          s = p.read_text(encoding='utf-8')
+          old = 'root.tab < 5'
+          if old not in s:
+              raise SystemExit('Controls navigation threshold not found')
+          p.write_text(s.replace(old, 'root.tab < 6', 1), encoding='utf-8')
+          PY
+
           python3 branding-repo/patches/vortise_v012_channels.py src
           chmod +x src/gradlew
 
