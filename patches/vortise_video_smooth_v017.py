@@ -11,42 +11,32 @@ def rw(rel: str, old: str, new: str, count: int = 1):
         raise RuntimeError(f"Expected snippet not found in {rel}: {old[:180]!r}")
     p.write_text(s.replace(old, new, count), encoding="utf-8")
 
-# More headroom for ordinary video playback. Direct extracted streams keep platform ads out;
-# this patch only changes buffering/recovery behaviour.
+# Runtime fix: do not wrap Media3 LoadControl using Kotlin interface delegation.
+# Media3 1.5.1 calls getBackBufferDurationUs() while constructing ExoPlayer; the delegated
+# wrapper can fall through to the interface's unimplemented default and crash the Activity.
+# Use the official DefaultLoadControl implementation directly and tune it through its Builder.
 engine = "app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt"
-rw(engine,
-'''        private val base: LoadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(20_000, 90_000, 1_500, 3_500)
+p = ROOT / engine
+s = p.read_text(encoding="utf-8")
+start = s.find("    private class VorticeLoadControl(")
+end = s.find("    fun configureAudioUsage", start)
+if start < 0 or end < 0:
+    raise RuntimeError("VorticeLoadControl block not found in Engine.kt")
+s = s[:start] + s[end:]
+s = s.replace("import androidx.media3.exoplayer.LoadControl\n", "")
+old_load = "        val load = VorticeLoadControl()\n"
+new_load = '''        val load = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(30_000, 120_000, 5_000, 8_000)
+            .setBackBuffer(0, false)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
-''',
-'''        private val base: LoadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(30_000, 120_000, 2_500, 6_000)
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
-''')
+'''
+if old_load not in s:
+    raise RuntimeError("VorticeLoadControl construction not found in Engine.kt")
+s = s.replace(old_load, new_load, 1)
+p.write_text(s, encoding="utf-8")
 
-# Music keeps its dedicated cushion. Long-form video gets a larger startup/rebuffer margin.
-rw(engine,
-'''        override fun shouldStartPlayback(parameters: LoadControl.Parameters): Boolean {
-            if (!Session.musicMode && !Session.longForm) return base.shouldStartPlayback(parameters)
-            val requiredUs = if (parameters.rebuffering) 8_000_000L else 5_000_000L
-            return parameters.bufferedDurationUs >= requiredUs || parameters.bufferedDurationUs == androidx.media3.common.C.TIME_UNSET
-        }
-''',
-'''        override fun shouldStartPlayback(parameters: LoadControl.Parameters): Boolean {
-            if (!Session.musicMode && !Session.longForm) return base.shouldStartPlayback(parameters)
-            val requiredUs = when {
-                Session.musicMode && parameters.rebuffering -> 8_000_000L
-                Session.musicMode -> 5_000_000L
-                Session.longForm && parameters.rebuffering -> 12_000_000L
-                else -> 8_000_000L
-            }
-            return parameters.bufferedDurationUs >= requiredUs || parameters.bufferedDurationUs == androidx.media3.common.C.TIME_UNSET
-        }
-''')
-
-# Do not restart a video for a short Wi-Fi hiccup. Let the enlarged buffer recover first.
+# Do not restart a video for a short Wi-Fi hiccup. Let the enlarged official buffer recover first.
 rw(engine,
 '''            if (state == Player.STATE_BUFFERING && exo.playWhenReady) Bg.main.postDelayed(stallFallback, 7_000)
 ''',
@@ -61,4 +51,4 @@ rw(sources,
 '''        .setConnectTimeoutMs(20_000).setReadTimeoutMs(30_000)
 ''')
 
-print("VórticeTv v0.1.7 video smoothness patch applied")
+print("VórticeTv v0.1.10 Media3 LoadControl crash fix + smoothness patch applied")
