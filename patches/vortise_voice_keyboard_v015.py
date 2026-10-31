@@ -21,7 +21,6 @@ def replace(rel, old, new, count=1):
     write(rel, s.replace(old, new, count))
 
 
-# 1) Portuguese TV keyboard in alphabetical order, as requested for remote control use.
 layouts = "app/src/main/kotlin/dev/limitedio/pipetv/ui/input/Layouts.kt"
 replace(
     layouts,
@@ -29,9 +28,6 @@ replace(
     'Layout("pt", "Português", listOf("abcdefg", "hijklmn", "opqrstu", "vwxyzç", "áéíóúãõâêô")),',
 )
 
-# 2) Stronger Android TV voice recognizer flow. SpeechRecognizer owns the physical mic gain,
-# so software cannot safely amplify the remote microphone; we improve capture tolerance,
-# retries and result selection instead.
 voice = "app/src/main/kotlin/dev/limitedio/pipetv/ui/input/Voice.kt"
 write(voice, r'''package dev.limitedio.pipetv.ui.input
 
@@ -44,7 +40,6 @@ import android.speech.SpeechRecognizer
 import dev.limitedio.pipetv.Bg
 import dev.limitedio.pipetv.i18n.S
 
-/** VórticeTv voice search tuned for Android TV remotes / far-field microphones. */
 object Voice {
     var active = false; private set
     var level = 0f; private set
@@ -193,10 +188,10 @@ object Voice {
 
         override fun onResults(bundle: Bundle) {
             val candidates = results(bundle)
-            val scores = bundle.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
+            val confidence = bundle.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES) ?: floatArrayOf()
             val picked = when {
-                !scores.isNullOrEmpty() && candidates.isNotEmpty() -> candidates.indices
-                    .maxByOrNull { scores.getOrElse(it) { -1f } }
+                confidence.isNotEmpty() && candidates.isNotEmpty() -> candidates.indices
+                    .maxByOrNull { i -> if (i < confidence.size) confidence[i] else -1f }
                     ?.let { candidates[it] }
                 candidates.isNotEmpty() -> candidates.maxByOrNull { it.trim().length }
                 else -> null
@@ -217,7 +212,6 @@ object Voice {
 }
 ''')
 
-# 3) Brand the generic search hint as VórticeTv in Portuguese.
 pt = "app/src/main/kotlin/dev/limitedio/pipetv/i18n/lang/Pt.kt"
 replace(pt, 'SEARCH_HINT to "Pesquisar no YouTube"', 'SEARCH_HINT to "Pesquisar no VórticeTv"')
 
