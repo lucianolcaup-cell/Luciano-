@@ -1,0 +1,11 @@
+VÓRTISE TV v0.1.2 DEV
+
+Base preservada: v0.1.1 TESTE.
+Recursos desta compilação:
+- Music dedicado via filtros nativos do YouTube Music/NewPipeExtractor.
+- Canais Abertos: apenas transmissões oficiais/públicas encontradas nos canais dos emissores.
+- Qualidade padrão 1080p, com fallback para a melhor qualidade inferior disponível.
+- Seleção de qualidade por vídeo, incluindo 1440p/2160p quando disponíveis.
+- Legendas com opção explícita Desativar.
+- SponsorBlock suavizado para evitar seeks agressivos no início.
+- Fallback automático de qualidade após buffering prolongado no perfil padrão.
