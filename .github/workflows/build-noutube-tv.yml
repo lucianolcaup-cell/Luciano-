@@ -77,6 +77,7 @@ jobs:
 
           python3 branding-repo/patches/vortise_v012.py src
           python3 branding-repo/patches/vortise_v012_channels.py src
+          python3 branding-repo/patches/vortise_music_free_v012.py src
 
           # Deterministic compile fixes and final VórticeTv branding.
           python3 - <<'PY'
