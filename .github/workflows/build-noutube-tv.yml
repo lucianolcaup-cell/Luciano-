@@ -1,0 +1,101 @@
+name: Build NouTube TV APK
+
+on:
+  push:
+    branches:
+      - noutube-tv-v0.1
+    paths:
+      - '.github/workflows/build-noutube-tv.yml'
+      - 'scripts/patch_noutube_tv.py'
+      - 'README-NOUTUBETV.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout TV build layer
+        uses: actions/checkout@v4
+
+      - name: Checkout NouTube upstream 0.7.4
+        uses: actions/checkout@v4
+        with:
+          repository: nonbili/NouTube
+          ref: a2eeb7be1f3261a4bc717e009e49300372545d95
+          path: upstream
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install NouTube dependencies
+        working-directory: upstream
+        run: |
+          bun link
+          bun install --frozen-lockfile
+
+      - name: Apply TV source compatibility layer
+        run: python3 scripts/patch_noutube_tv.py upstream --phase source
+
+      - name: Bundle injected NouTube script
+        working-directory: upstream
+        run: bun bundle:es
+
+      - name: Generate Android project
+        working-directory: upstream
+        run: bun expo prebuild -p android --clean --no-install
+
+      - name: Apply Android TV manifest and signing layer
+        run: python3 scripts/patch_noutube_tv.py upstream --phase android
+
+      - name: Build installable release APKs
+        working-directory: upstream/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleFullRelease --no-daemon --stacktrace
+
+      - name: Collect APKs and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          find upstream/android/app/build/outputs/apk/full/release -type f -name '*.apk' -print -exec cp {} dist/ \;
+          if ! ls dist/*.apk >/dev/null 2>&1; then
+            echo 'Nenhum APK foi gerado.' >&2
+            exit 1
+          fi
+          cd dist
+          for f in *.apk; do
+            safe=$(echo "$f" | sed 's/^app-/NouTube-TV-v0.1-/; s/-full-release//')
+            if [ "$safe" != "$f" ]; then mv "$f" "$safe"; fi
+          done
+          sha256sum *.apk > SHA256SUMS.txt
+          printf '%s\n' \
+            'NouTube TV v0.1' \
+            'Base: nonbili/NouTube 0.7.4' \
+            'Commit: a2eeb7be1f3261a4bc717e009e49300372545d95' \
+            'Source/patch: branch noutube-tv-v0.1 in lucianolcaup-cell/Luciano-' \
+            > SOURCE.txt
+
+      - name: Upload NouTube TV APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NouTube-TV-v0.1-APK
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
