@@ -27,9 +27,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Prepare NouTube TV test build
         shell: bash
         run: |
@@ -38,6 +35,13 @@ jobs:
           sed -i 's/applicationId = "dev.limitedio.pipetv"/applicationId = "br.com.luciano.noutubetv"/' app/build.gradle.kts
           sed -i 's/android:label="PipeTv"/android:label="NouTube TV"/' app/src/main/AndroidManifest.xml
           chmod +x gradlew
+
+      - name: Verify Android SDK
+        shell: bash
+        run: |
+          test -n "${ANDROID_HOME:-}"
+          test -d "$ANDROID_HOME"
+          echo "ANDROID_HOME=$ANDROID_HOME"
 
       - name: Run tests
         shell: bash
