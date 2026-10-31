@@ -7,11 +7,12 @@ on:
     paths:
       - '.github/workflows/build-noutube-tv.yml'
       - 'scripts/patch_noutube_tv.py'
+      - 'scripts/limit_tv_abis.py'
       - 'README-NOUTUBETV.md'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -63,6 +64,9 @@ jobs:
       - name: Apply Android TV manifest and signing layer
         run: python3 scripts/patch_noutube_tv.py upstream --phase android
 
+      - name: Limit build to Android TV ARM architectures
+        run: python3 scripts/limit_tv_abis.py
+
       - name: Build installable release APKs
         working-directory: upstream/android
         run: |
@@ -89,6 +93,7 @@ jobs:
             'NouTube TV v0.1' \
             'Base: nonbili/NouTube 0.7.4' \
             'Commit: a2eeb7be1f3261a4bc717e009e49300372545d95' \
+            'Architectures: arm64-v8a and armeabi-v7a' \
             'Source/patch: branch noutube-tv-v0.1 in lucianolcaup-cell/Luciano-' \
             > SOURCE.txt
 
@@ -99,3 +104,21 @@ jobs:
           path: dist/*
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish direct-download APK release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: noutube-tv-v0.1-build
+          target_commitish: noutube-tv-v0.1
+          name: NouTube TV v0.1 - Android TV
+          prerelease: true
+          body: |
+            Unofficial Android TV compatibility build based on NouTube 0.7.4.
+
+            Includes Android TV launcher support, D-pad navigation, YouTube + YouTube Music, the upstream NouTube ad-blocking layer and background playback.
+
+            For most modern TVs use arm64-v8a. For 32-bit Android TV use armeabi-v7a.
+          files: |
+            dist/*.apk
+            dist/SHA256SUMS.txt
+            dist/SOURCE.txt
