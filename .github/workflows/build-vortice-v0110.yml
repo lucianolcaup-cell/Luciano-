@@ -172,7 +172,7 @@ jobs:
           target: google_apis
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             adb install -r out/VorticeTv-v0.1.10-TESTE.apk
             adb logcat -c
             adb shell am force-stop br.com.luciano.noutubetv
