@@ -86,6 +86,7 @@ jobs:
           python3 branding-repo/patches/vortise_music_no_restart_v016.py src
           python3 branding-repo/patches/vortise_channels_live_v016.py src
           python3 branding-repo/patches/vortise_movies_player_v017.py src
+          python3 branding-repo/patches/vortise_video_smooth_v017.py src
 
           python3 - <<'PY'
           from pathlib import Path
@@ -135,7 +136,10 @@ jobs:
           grep -F 'Scrollbar.draw' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/Grid.kt
           grep -F 'var longForm = false' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Session.kt
           grep -F 'if (!musicMode && !longForm) SponsorBlock.load(it.id)' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Session.kt
-          grep -F '!Session.musicMode && !Session.longForm' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt
+          grep -F '.setBufferDurationsMs(30_000, 120_000, 2_500, 6_000)' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt
+          grep -F 'Session.longForm && parameters.rebuffering -> 12_000_000L' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt
+          grep -F 'if (Session.longForm) 12_000L else 10_000L' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt
+          grep -F '.setReadTimeoutMs(30_000)' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Sources.kt
           grep -F 'private var stallStage = 0' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Recovery.kt
           grep -F 'Session.safe = maxOf(Session.safe, 2)' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Recovery.kt
           grep -F 'types.select(2)' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/MusicPage.kt
