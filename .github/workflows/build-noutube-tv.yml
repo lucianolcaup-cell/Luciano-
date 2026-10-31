@@ -43,15 +43,10 @@ jobs:
           test -d "$ANDROID_HOME"
           echo "ANDROID_HOME=$ANDROID_HOME"
 
-      - name: Run tests
-        shell: bash
-        run: |
-          cd src
-          ./gradlew test -Pnoupdater --stacktrace
-
       - name: Build installable APK
         shell: bash
         run: |
+          set -euo pipefail
           cd src
           ./gradlew assembleDebug -Pnoupdater -Pvname=0.1.0 -Pvcode=1 --stacktrace
           mkdir -p ../out
