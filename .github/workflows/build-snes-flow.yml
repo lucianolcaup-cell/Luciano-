@@ -74,6 +74,9 @@ jobs:
           cd ../..
           python3 tools/patch_libretrodroid_master.py
           grep -q "donkeyMasterFragment" vendor/LibretroDroid/libretrodroid/src/main/cpp/shadermanager.cpp
+          # Wrappers do upstream e dos samples não participam deste build; removê-los evita
+          # validar/executar JARs antigos e deixa a validação do nosso ambiente ativa.
+          find vendor/LibretroDroid -type f -path '*/gradle/wrapper/gradle-wrapper.jar' -print -delete
 
       - name: Baixar patch PT-BR FURT
         shell: bash
