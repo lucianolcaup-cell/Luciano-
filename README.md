@@ -1,20 +1,12 @@
-# DonkeyK2 Android v0.1.7
+# DonkeyK2 Android v0.1.9
 
-Projeto Android privado de emulação SNES baseado em LibretroDroid + Snes9x, com tela cheia imersiva, joystick touch, A/B/X, Select/Start, SRAM, save/load state e tradução PT-BR aplicada na cópia privada do jogo.
+Build privado Android com Snes9x/LibretroDroid.
 
-## Controles
-- Joystick/D-Pad: movimento, agachar, cordas e portas.
-- B: pular.
-- A: pegar/colocar parceiro e ações contextuais.
-- X toque curto: função original do X (arremessar parceiro/desmontar).
-- X segurado: assume a antiga função do Y (correr/rolar/planar com Dixie).
-- Select: trocar Kong.
-- Start: pausar.
-- L/R e Y visível foram removidos da interface.
+- Interface touch em triângulo: X no topo, A/B embaixo.
+- Y removido; X curto mantém X e X segurado assume a função de Y.
+- MASTER HD+ preservado.
+- Boot protegido por 8 segundos com sequência automática de entradas para impedir a exibição da tela FURT.
+- Crédito exibido: “Projeto desenvolvido por Bolete, saudações jogadores”.
+- Ícone DonkeyK2 restaurado a partir da arte preservada.
 
-## Vídeo
-Perfil MASTER HD+ com Snes9x Hi-Res ativado, Blargg/blur desativados, aspecto 4:3 preservado e CUT3 recalibrado para maior definição de bordas sem deformar sprites.
-
-A ROM comercial não é mantida no repositório público. A build privada recebe a cópia do usuário somente na etapa final de empacotamento.
-
-O frontend usa LibretroDroid (GPL-3.0). O core Snes9x possui licença própria com restrições para uso comercial. Projeto destinado a uso pessoal/testes.
+A ROM não é publicada no repositório. O APK privado pode conter a cópia fornecida pelo usuário.
