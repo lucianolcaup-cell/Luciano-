@@ -34,12 +34,7 @@ jobs:
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "cmake;3.22.1" \
-            "ndk;27.0.12077973"
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1" "ndk;27.0.12077973"
 
       - name: Preparar ferramentas oficiais de assinatura
         shell: bash
@@ -74,8 +69,6 @@ jobs:
           cd ../..
           python3 tools/patch_libretrodroid_master.py
           grep -q "donkeyMasterFragment" vendor/LibretroDroid/libretrodroid/src/main/cpp/shadermanager.cpp
-          # Wrappers do upstream e dos samples não participam deste build; removê-los evita
-          # validar/executar JARs antigos e deixa a validação do nosso ambiente ativa.
           find vendor/LibretroDroid -type f -path '*/gradle/wrapper/gradle-wrapper.jar' -print -delete
 
       - name: Baixar patch PT-BR FURT
@@ -124,6 +117,27 @@ jobs:
           python3 -m py_compile tools/patch_furt_intro.py
           python3 -m py_compile tools/patch_libretrodroid_master.py
 
+      - name: Empacotar código-fonte sem ROM
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/source-stage
+          mkdir -p /tmp/source-stage/DonkeyK2-v0.2.1
+          rsync -a ./ /tmp/source-stage/DonkeyK2-v0.2.1/ \
+            --exclude='.git/' --exclude='.gradle/' --exclude='vendor/' --exclude='app/build/' \
+            --exclude='app/src/main/jniLibs/' --exclude='app/src/main/assets/dkc2.sfc'
+          cd /tmp/source-stage
+          zip -qr /tmp/DonkeyK2-v0.2.1-CODIGO-FONTE.zip DonkeyK2-v0.2.1
+          test -s /tmp/DonkeyK2-v0.2.1-CODIGO-FONTE.zip
+
+      - name: Publicar código-fonte
+        uses: actions/upload-artifact@v4
+        with:
+          name: DonkeyK2-v0.2.1-Codigo-Fonte
+          path: /tmp/DonkeyK2-v0.2.1-CODIGO-FONTE.zip
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Compilar APK debug
         shell: bash
         run: gradle --no-daemon --stacktrace assembleDebug
@@ -134,6 +148,7 @@ jobs:
           set -euo pipefail
           test -s app/build/outputs/apk/debug/app-debug.apk
           unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'lib/arm64-v8a/libretrodroid.so'
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'lib/armeabi-v7a/libretrodroid.so'
           sha256sum app/build/outputs/apk/debug/app-debug.apk | tee APK_SHA256.txt
 
       - name: Publicar artefato
