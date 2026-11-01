@@ -32,7 +32,7 @@ class TouchControlsView(
     }
 
     private val activeKeys = mutableMapOf<Int, Int>()
-    private val pointerActions = mutableMapOf<Int, () -> Unit>()
+    private val pointerActions = mutableMapOf<Int, Pair<RectF, () -> Unit>>()
     private var circles: List<CircleButton> = emptyList()
     private var rects: List<RectButton> = emptyList()
 
@@ -63,15 +63,16 @@ class TouchControlsView(
         val side = w * 0.035f
         val top = h * 0.035f
         val centerY = h * 0.915f
-        val smallW = w * 0.105f
+        val smallW = w * 0.085f
         val smallH = h * 0.075f
+        fun centeredRect(cx: Float) = RectF(cx - smallW / 2, centerY - smallH / 2, cx + smallW / 2, centerY + smallH / 2)
         rects = listOf(
             RectButton(RectF(side, top, side + shoulderW, top + shoulderH), KeyEvent.KEYCODE_BUTTON_L1, "L"),
             RectButton(RectF(w - side - shoulderW, top, w - side, top + shoulderH), KeyEvent.KEYCODE_BUTTON_R1, "R"),
-            RectButton(RectF(w * 0.38f - smallW, centerY - smallH / 2, w * 0.38f, centerY + smallH / 2), KeyEvent.KEYCODE_BUTTON_SELECT, "SELECT"),
-            RectButton(RectF(w * 0.62f, centerY - smallH / 2, w * 0.62f + smallW, centerY + smallH / 2), KeyEvent.KEYCODE_BUTTON_START, "START"),
-            RectButton(RectF(w * 0.445f - smallW, centerY - smallH / 2, w * 0.445f, centerY + smallH / 2), null, "SAVE", onSave),
-            RectButton(RectF(w * 0.555f, centerY - smallH / 2, w * 0.555f + smallW, centerY + smallH / 2), null, "LOAD", onLoad),
+            RectButton(centeredRect(w * 0.35f), KeyEvent.KEYCODE_BUTTON_SELECT, "SELECT"),
+            RectButton(centeredRect(w * 0.45f), null, "SAVE", onSave),
+            RectButton(centeredRect(w * 0.55f), null, "LOAD", onLoad),
+            RectButton(centeredRect(w * 0.65f), KeyEvent.KEYCODE_BUTTON_START, "START"),
         )
     }
 
@@ -102,8 +103,11 @@ class TouchControlsView(
             MotionEvent.ACTION_MOVE -> {
                 for (i in 0 until event.pointerCount) {
                     val id = event.getPointerId(i)
+                    val x = event.getX(i)
+                    val y = event.getY(i)
+                    pointerActions[id]?.let { (rect, _) -> if (!rect.contains(x, y)) pointerActions.remove(id) }
                     val current = activeKeys[id]
-                    val target = keyAt(event.getX(i), event.getY(i))
+                    val target = keyAt(x, y)
                     if (current != target) {
                         if (current != null) onKey(current, false)
                         if (target != null) onKey(target, true)
@@ -123,12 +127,14 @@ class TouchControlsView(
             onKey(key, true)
             return
         }
-        actionAt(x, y)?.let { pointerActions[id] = it }
+        rects.firstOrNull { it.action != null && it.rect.contains(x, y) }?.let { button ->
+            pointerActions[id] = button.rect to requireNotNull(button.action)
+        }
     }
 
     private fun releasePointer(id: Int) {
         activeKeys.remove(id)?.let { onKey(it, false) }
-        pointerActions.remove(id)?.invoke()
+        pointerActions.remove(id)?.second?.invoke()
     }
 
     private fun releaseAll() {
@@ -143,6 +149,5 @@ class TouchControlsView(
         return null
     }
 
-    private fun actionAt(x: Float, y: Float): (() -> Unit)? = rects.firstOrNull { it.action != null && it.rect.contains(x, y) }?.action
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
 }
