@@ -86,18 +86,19 @@ rw(menu,
 # -----------------------------------------------------------------------------
 # Fast open: don't block playback while fetching recommendations/related videos.
 # Stream extraction is the critical path; related content is loaded afterwards.
+# Preserve the Music flag captured before opening.
 # -----------------------------------------------------------------------------
 session = "app/src/main/kotlin/dev/limitedio/pipetv/media/Session.kt"
 rw(session,
-'''    private class Opened(val info: StreamInfo, val related: List<Item>, val resume: Long)
+'''    private class Opened(val info: StreamInfo, val related: List<Item>, val resume: Long, val music: Boolean)
 ''',
-'''    private class Opened(val info: StreamInfo, val resume: Long)
+'''    private class Opened(val info: StreamInfo, val resume: Long, val music: Boolean)
 ''')
 
 rw(session,
 '''        Bg.io({
             val si = Yt.stream(it.url)
-            Opened(si, Yt.related(si), Store.entries().firstOrNull { e -> e.item.id == it.id }?.resume ?: 0L)
+            Opened(si, Yt.related(si), Store.entries().firstOrNull { e -> e.item.id == it.id }?.resume ?: 0L, openingMusic)
         }) { r ->
             if (t != token) return@io
             pending = null
@@ -107,14 +108,14 @@ rw(session,
 ''',
 '''        Bg.io({
             val si = Yt.stream(it.url)
-            Opened(si, Store.entries().firstOrNull { e -> e.item.id == it.id }?.resume ?: 0L)
+            Opened(si, Store.entries().firstOrNull { e -> e.item.id == it.id }?.resume ?: 0L, openingMusic)
         }) { r ->
             if (t != token) return@io
             pending = null
             if (r == null) onOpenFailed() else {
                 swap(it, r)
-                // Recommendations are not needed to start playback. Load them only after
-                // the selected stream has already been handed to ExoPlayer.
+                // Recommendations are not needed to start playback. Load them after ExoPlayer
+                // has already received the selected stream.
                 Bg.io({ runCatching { Yt.related(r.info) }.getOrDefault(emptyList()) }) { rel ->
                     if (t == token && item?.id == it.id) {
                         related = rel.orEmpty()
@@ -127,9 +128,9 @@ rw(session,
 ''')
 
 rw(session,
-'''        item = it; info = o.info; related = o.related; cap = 2160; safe = 0; manualHeight = null
+'''        item = it; info = o.info; related = o.related; cap = 2160; safe = 0; manualHeight = null; musicMode = o.music
 ''',
-'''        item = it; info = o.info; related = emptyList(); cap = 2160; safe = 0; manualHeight = null
+'''        item = it; info = o.info; related = emptyList(); cap = 2160; safe = 0; manualHeight = null; musicMode = o.music
 ''')
 
 print("VórticeTv v0.1.11 actual 4K + fast-open patch applied")
