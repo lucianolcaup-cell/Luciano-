@@ -80,18 +80,12 @@ class TouchControlsView(
             CircleButton(rightX, baseY + gap, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_B, "B"),
         )
 
-        val shoulderW = w * 0.14f
-        val shoulderH = h * 0.105f
-        val side = w * 0.028f
-        val top = h * 0.025f
         val centerY = h * 0.915f
         val smallW = w * 0.085f
         val smallH = h * 0.075f
         fun centeredRect(cx: Float) = RectF(cx - smallW / 2, centerY - smallH / 2, cx + smallW / 2, centerY + smallH / 2)
 
         rects = listOf(
-            RectButton(RectF(side, top, side + shoulderW, top + shoulderH), KeyEvent.KEYCODE_BUTTON_L1, "L"),
-            RectButton(RectF(w - side - shoulderW, top, w - side, top + shoulderH), KeyEvent.KEYCODE_BUTTON_R1, "R"),
             RectButton(centeredRect(w * 0.35f), KeyEvent.KEYCODE_BUTTON_SELECT, "SELECT"),
             RectButton(centeredRect(w * 0.45f), null, "SAVE", onSave),
             RectButton(centeredRect(w * 0.55f), null, "LOAD", onLoad),
