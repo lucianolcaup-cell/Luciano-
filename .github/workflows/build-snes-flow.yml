@@ -41,9 +41,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/android-signing-tools
+          ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" /tmp/android-signing-tools/
-          cp "$ANDROID_HOME/build-tools/35.0.0/zipalign" /tmp/android-signing-tools/
+          cp "$ZIPALIGN" /tmp/android-signing-tools/
           chmod +x /tmp/android-signing-tools/zipalign
+          LIBCPP="$(ldd "$ZIPALIGN" | awk '/libc\+\+\.so/ && $3 ~ /^\// {print $3; exit}')"
+          test -n "$LIBCPP"
+          cp -L "$LIBCPP" /tmp/android-signing-tools/libc++.so
+          LD_LIBRARY_PATH=/tmp/android-signing-tools /tmp/android-signing-tools/zipalign -h >/dev/null 2>&1 || true
 
       - name: Publicar ferramentas de assinatura
         uses: actions/upload-artifact@v4
