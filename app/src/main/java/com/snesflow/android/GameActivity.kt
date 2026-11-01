@@ -3,9 +3,13 @@ package com.snesflow.android
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
@@ -25,6 +29,7 @@ class GameActivity : ComponentActivity() {
     private lateinit var romFile: File
     private lateinit var sramFile: File
     private lateinit var stateFile: File
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,8 +54,8 @@ class GameActivity : ComponentActivity() {
             savesDirectory = savesDir.absolutePath
             saveRAMState = sramFile.takeIf { it.isFile }?.readBytes()
             shader = ShaderConfig.CUT3(
-                staticSharpness = 0.82f,
-                softEdgesSharpeningAmount = 1.15f,
+                staticSharpness = 0.88f,
+                softEdgesSharpeningAmount = 1.22f,
                 hardEdgesSearchMaxDistance = 4,
             )
             viewportAlignment = ViewportAlignment.CENTER
@@ -67,16 +72,59 @@ class GameActivity : ComponentActivity() {
     private fun buildGameUi(): FrameLayout = FrameLayout(this).apply {
         setBackgroundColor(Color.BLACK)
         keepScreenOn = true
-        addView(retroView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        addView(
+            retroView,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+
         addView(
             TouchControlsView(
                 this@GameActivity,
-                onKey = { key, pressed -> retroView.sendKeyEvent(if (pressed) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, key) },
+                onKey = { key, pressed ->
+                    retroView.sendKeyEvent(if (pressed) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, key)
+                },
                 onSave = { saveState() },
                 onLoad = { loadState() },
             ),
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
+
+        addView(buildCreditOverlay(), FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+
+    private fun buildCreditOverlay(): FrameLayout {
+        val overlay = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+            isClickable = true
+            isFocusable = true
+        }
+
+        overlay.addView(
+            TextView(this).apply {
+                text = "Esse projeto foi desenvolvido por Bolete\nsaudações jogadores"
+                setTextColor(Color.WHITE)
+                textSize = 32f
+                gravity = Gravity.CENTER
+                textAlignment = TextView.TEXT_ALIGNMENT_CENTER
+                setPadding(dp(30), dp(20), dp(30), dp(20))
+            },
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+
+        mainHandler.postDelayed({
+            if (!isFinishing && !isDestroyed) {
+                retroView.sendKeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BUTTON_START)
+                mainHandler.postDelayed({
+                    retroView.sendKeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BUTTON_START)
+                    overlay.animate().alpha(0f).setDuration(280L).withEndAction {
+                        (overlay.parent as? ViewGroup)?.removeView(overlay)
+                    }.start()
+                }, 90L)
+            }
+        }, 2600L)
+
+        return overlay
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -87,6 +135,11 @@ class GameActivity : ComponentActivity() {
     override fun onPause() {
         if (::retroView.isInitialized) saveSramSafely()
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        mainHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -154,4 +207,6 @@ class GameActivity : ComponentActivity() {
         KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_Y,
         KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_BUTTON_SELECT,
     )
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 }
