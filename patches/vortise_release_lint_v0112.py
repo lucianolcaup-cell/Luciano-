@@ -48,7 +48,7 @@ plain_impl = '''    private fun plain(s: String): String {
     }
 
     private fun parse'''
-s = plain_pattern.sub(plain_impl, s, count=1)
+s = plain_pattern.sub(lambda _: plain_impl, s, count=1)
 write(subs, s)
 
 ytpages = "app/src/main/kotlin/dev/limitedio/pipetv/data/YtPages.kt"
@@ -71,7 +71,7 @@ yt_impl = '''    fun plain(d: Description?): String = when {
     }
 
     fun channel'''
-s = plain_desc.sub(yt_impl, s, count=1)
+s = plain_desc.sub(lambda _: yt_impl, s, count=1)
 write(ytpages, s)
 
 updater = "app/src/main/kotlin/dev/limitedio/pipetv/update/Updater.kt"
