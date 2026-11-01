@@ -3,7 +3,7 @@ name: Build DonkeyK2 APK
 on:
   push:
     branches:
-      - snes-flow-android-v0.1.9
+      - snes-flow-android-v0.2.0
   workflow_dispatch:
 
 permissions:
@@ -97,6 +97,10 @@ jobs:
             test -s "app/src/main/jniLibs/${ABI}/snes9x_libretro_android.so"
           done
 
+      - name: Validar patch estrutural de intro
+        shell: bash
+        run: python3 -m py_compile tools/patch_furt_intro.py
+
       - name: Compilar APK debug
         shell: bash
         run: gradle --no-daemon --stacktrace assembleDebug
@@ -111,7 +115,7 @@ jobs:
       - name: Publicar artefato
         uses: actions/upload-artifact@v4
         with:
-          name: DonkeyK2-v0.1.9-Android
+          name: DonkeyK2-v0.2.0-Android
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             APK_SHA256.txt
