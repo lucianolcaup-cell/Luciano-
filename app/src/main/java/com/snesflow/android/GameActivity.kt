@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -33,6 +34,8 @@ class GameActivity : ComponentActivity() {
         const val EXTRA_ROM_PATH = "rom_path"
         private const val X_HOLD_TO_RUN_MS = 90L
         private const val X_TAP_PULSE_MS = 70L
+        private const val INTRO_REVEAL_MS = 3000L
+        private const val INTRO_PULSE_MS = 65L
     }
 
     private lateinit var retroView: GLRetroView
@@ -45,6 +48,8 @@ class GameActivity : ComponentActivity() {
     private var xHoldActivated = false
     private var xHoldRunnable: Runnable? = null
     private var xButtonView: TextView? = null
+    private var controlsView: TouchControlsView? = null
+    private var introShield: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,7 +74,7 @@ class GameActivity : ComponentActivity() {
             savesDirectory = savesDir.absolutePath
             saveRAMState = sramFile.takeIf { it.isFile }?.readBytes()
 
-            // MASTER HD+ v0.1.7: reconstrução de borda mais forte sem blur analógico.
+            // MASTER HD+ v0.1.8: reconstrução de borda mais forte sem blur analógico.
             shader = ShaderConfig.CUT3(
                 useDynamicBlend = true,
                 blendMinContrastEdge = 0.01f,
@@ -115,19 +120,39 @@ class GameActivity : ComponentActivity() {
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
 
+        val controls = TouchControlsView(
+            this,
+            onKey = { key, pressed -> sendGameKey(key, pressed) },
+            onSave = { saveState() },
+            onLoad = { loadState() },
+        ).apply {
+            visibility = View.INVISIBLE
+        }
+        controlsView = controls
         root.addView(
-            TouchControlsView(
-                this,
-                onKey = { key, pressed -> sendGameKey(key, pressed) },
-                onSave = { saveState() },
-                onLoad = { loadState() },
-            ),
+            controls,
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
 
-        val xButton = buildSmartXButton()
+        val xButton = buildSmartXButton().apply {
+            visibility = View.INVISIBLE
+        }
         xButtonView = xButton
         root.addView(xButton, FrameLayout.LayoutParams(1, 1))
+
+        val shield = View(this).apply {
+            setBackgroundColor(Color.BLACK)
+            isClickable = true
+            isFocusable = true
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        introShield = shield
+        root.addView(
+            shield,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+
+        root.post { scheduleIntroBypass() }
 
         root.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
             val width = right - left
@@ -150,6 +175,30 @@ class GameActivity : ComponentActivity() {
         }
 
         return root
+    }
+
+    private fun scheduleIntroBypass() {
+        // A tela de aviso pertence ao patch PT-BR, não ao frontend.
+        // Mantém os primeiros frames ocultos e envia B, que é inócuo no menu/título,
+        // até ultrapassar a tela de crédito sem exibi-la ao usuário.
+        listOf(700L, 1300L, 1900L, 2500L).forEach { delay ->
+            uiHandler.postDelayed({ pulseIntroSkipButton() }, delay)
+        }
+
+        uiHandler.postDelayed({
+            introShield?.visibility = View.GONE
+            controlsView?.visibility = View.VISIBLE
+            xButtonView?.visibility = View.VISIBLE
+        }, INTRO_REVEAL_MS)
+    }
+
+    private fun pulseIntroSkipButton() {
+        if (!::retroView.isInitialized || isFinishing || isDestroyed) return
+        sendGameKey(KeyEvent.KEYCODE_BUTTON_B, true)
+        uiHandler.postDelayed(
+            { if (::retroView.isInitialized) sendGameKey(KeyEvent.KEYCODE_BUTTON_B, false) },
+            INTRO_PULSE_MS,
+        )
     }
 
     private fun buildSmartXButton(): TextView = TextView(this).apply {
@@ -182,7 +231,6 @@ class GameActivity : ComponentActivity() {
                 }
 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    val elapsed = SystemClock.uptimeMillis() - xPressedAt
                     cancelXHold()
 
                     if (xHoldActivated) {
