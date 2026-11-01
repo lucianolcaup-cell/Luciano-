@@ -36,6 +36,46 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
+      - name: Preparar ferramentas oficiais de assinatura
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/android-signing-tools
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" /tmp/android-signing-tools/
+          cp "$ANDROID_HOME/build-tools/35.0.0/zipalign" /tmp/android-signing-tools/
+          chmod +x /tmp/android-signing-tools/zipalign
+
+      - name: Publicar ferramentas de assinatura
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-Signing-Tools-35
+          path: /tmp/android-signing-tools/
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Baixar patch PT-BR FURT
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/dkc2-patch
+          URL="https://cdn.romhackers.org/traducoes/%5BSNES%5D%20Donkey%20Kong%20Country%202%20-%20Diddy%27s%20Kong%20Quest%20%28U%29%20%28V1.1%29%20%5B%21%5D%20%5BT-BR%5D%20%5BT-Solid%20One%2C%20denim%20e%20grande%20elenco%20G-FURT%5D%20%5BV-1.0%20P-100%25%20A-2017%5D.zip"
+          curl --fail --location --retry 3 --output /tmp/dkc2-patch/furt.zip "$URL"
+          unzip -j /tmp/dkc2-patch/furt.zip '*.ips' -d /tmp/dkc2-patch/extracted
+          IPS="$(find /tmp/dkc2-patch/extracted -maxdepth 1 -type f -iname '*.ips' | head -n 1)"
+          test -s "$IPS"
+          cp "$IPS" /tmp/dkc2-patch/DKC2_FURT_PTBR_v1.0.ips
+          sha256sum /tmp/dkc2-patch/DKC2_FURT_PTBR_v1.0.ips | tee /tmp/dkc2-patch/PATCH_SHA256.txt
+
+      - name: Publicar patch PT-BR
+        uses: actions/upload-artifact@v4
+        with:
+          name: DKC2-FURT-PTBR-Patch
+          path: |
+            /tmp/dkc2-patch/DKC2_FURT_PTBR_v1.0.ips
+            /tmp/dkc2-patch/PATCH_SHA256.txt
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
