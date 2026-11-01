@@ -1,0 +1,77 @@
+#!/bin/sh
+set -u
+
+PKG='br.com.luciano.noutubetv'
+ACT='dev.limitedio.pipetv.MainActivity'
+APK='out/VorticeTv-v0.1.11-TESTE.apk'
+LOG='out/runtime-smoke-log.txt'
+
+capture_and_fail() {
+  reason="$1"
+  echo "$reason" >&2
+  adb logcat -d -v time > "$LOG" || true
+  echo '===== VÓRTICETV FATAL EXCEPTION =====' >&2
+  grep -A 80 'FATAL EXCEPTION' "$LOG" >&2 || true
+  echo '===== VÓRTICETV PROCESS / CRASH LINES =====' >&2
+  grep -E -A 25 -B 10 'AndroidRuntime|FATAL EXCEPTION|Process: br.com.luciano.noutubetv|Force finishing|has died|CRASH' "$LOG" >&2 || true
+  exit 1
+}
+
+alive() {
+  pid="$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r' || true)"
+  [ -n "$pid" ]
+}
+
+start_app() {
+  adb shell am force-stop "$PKG"
+  adb shell am start -W -n "$PKG/$ACT" || exit 1
+  sleep 10
+  alive || capture_and_fail 'App morreu logo após abrir'
+}
+
+adb install -r "$APK" || exit 1
+adb logcat -c
+start_app
+
+# Valida caminho inicial.
+adb shell input keyevent 23
+sleep 4
+alive || capture_and_fail 'App morreu após o primeiro OK'
+
+# Entra em Canais Abertos: Home -> Search -> Music -> Canais Abertos.
+adb shell input keyevent 21
+sleep 1
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 22
+sleep 15
+alive || capture_and_fail 'App morreu durante carregamento de Canais Abertos'
+
+# Reinicia e repete o smoke de reprodução já aprovado na v0.1.10.
+start_app
+adb shell input keyevent 23
+sleep 4
+alive || capture_and_fail 'App morreu após OK no segundo ciclo'
+adb shell input keyevent 21
+sleep 1
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 22
+sleep 8
+alive || capture_and_fail 'App morreu ao entrar em Em alta'
+adb shell input keyevent 23
+sleep 2
+alive || capture_and_fail 'App morreu ao ativar a grade de Em alta'
+adb shell input keyevent 23
+sleep 8
+alive || capture_and_fail 'App morreu ao selecionar um vídeo em Em alta'
+
+adb logcat -d -v time > "$LOG" || true
+if grep -A 24 'FATAL EXCEPTION' "$LOG" | grep -q "$PKG"; then
+  capture_and_fail 'FATAL EXCEPTION detectada mesmo com processo ativo'
+fi
+
+echo 'RUNTIME_SMOKE_OK'
