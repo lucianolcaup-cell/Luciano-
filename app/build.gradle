@@ -11,8 +11,8 @@ android {
         applicationId 'com.snesflow.android'
         minSdk 23
         targetSdk 35
-        versionCode 11
-        versionName '0.2.0'
+        versionCode 12
+        versionName '0.2.1'
 
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a'
@@ -40,5 +40,5 @@ dependencies {
     implementation 'androidx.activity:activity-ktx:1.10.1'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
     implementation 'androidx.core:core-ktx:1.15.0'
-    implementation 'com.github.Swordfish90:LibretroDroid:0.14.0'
+    implementation project(':libretrodroid')
 }
