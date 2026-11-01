@@ -1,0 +1,104 @@
+name: Build VórticeTv v0.1.11 FINAL TEST
+
+on:
+  push:
+    branches: [ vortise-tv-v0.1.11-fine-tuning ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout VórticeTv customization
+        uses: actions/checkout@v4
+        with:
+          path: branding-repo
+
+      - name: Checkout tested PipeTV upstream
+        uses: actions/checkout@v4
+        with:
+          repository: LimitedIO/PipeTv
+          ref: ebf482b60bf44aa2f639dffb6c4a22f93da6cf1a
+          path: src
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prepare VórticeTv v0.1.11
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet pillow
+          bash branding-repo/scripts/prepare-v0111.sh src branding-repo
+
+      - name: Static regression checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'class MusicAlbumPage' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/MusicAlbumPage.kt
+          grep -F 'musicQueue' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Session.kt
+          grep -F 'DefaultLoadControl.Builder()' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt
+          ! grep -F 'class VorticeLoadControl' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt
+          grep -F 'CNN Brasil ao vivo' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/OpenChannelsPage.kt
+          grep -F 'sourceCache' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/OpenChannelsPage.kt
+          grep -F 'groupFreshMs = 120_000L' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/OpenChannelsPage.kt
+          grep -F 'kioskBrazil("trending_music")' src/app/src/main/kotlin/dev/limitedio/pipetv/data/Feed.kt || grep -F '"trending_music"' src/app/src/main/kotlin/dev/limitedio/pipetv/data/Feed.kt
+          grep -F 'fun popularBrazil()' src/app/src/main/kotlin/dev/limitedio/pipetv/data/Feed.kt
+          grep -F 'forceContentCountry(ContentCountry("BR"))' src/app/src/main/kotlin/dev/limitedio/pipetv/data/Yt.kt
+          grep -F 'Feed.popularBrazil()' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/PopularPage.kt
+          grep -F 'bufferedSafe' src/app/src/main/kotlin/dev/limitedio/pipetv/media/SponsorBlock.kt
+          grep -F 'MOVIE_LIMIT = 600' src/app/src/main/kotlin/dev/limitedio/pipetv/ui/PopularPage.kt
+          if grep -RniE 'globoplay|com\.globo|globo.?play|Globo ao vivo' src/app/src/main 2>/dev/null; then exit 1; fi
+
+      - name: Run tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          ./gradlew testDebugUnitTest -Pnoupdater -Pvname=0.1.11 -Pvcode=12 --stacktrace
+
+      - name: Build installable APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          ./gradlew assembleDebug -Pnoupdater -Pvname=0.1.11 -Pvcode=12 --stacktrace
+          mkdir -p ../out
+          cp app/build/outputs/apk/debug/app-debug.apk ../out/VorticeTv-v0.1.11-TESTE.apk
+          sha256sum ../out/VorticeTv-v0.1.11-TESTE.apk | tee ../out/SHA256.txt
+
+      - name: Enable KVM for runtime smoke test
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Android runtime smoke test
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: sh branding-repo/scripts/runtime-smoke-v0111.sh
+
+      - name: Upload APK and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VorticeTv-v0.1.11-TESTE-FINAL
+          path: |
+            out/VorticeTv-v0.1.11-TESTE.apk
+            out/SHA256.txt
+            out/runtime-smoke-log.txt
+          if-no-files-found: warn
+          retention-days: 30
