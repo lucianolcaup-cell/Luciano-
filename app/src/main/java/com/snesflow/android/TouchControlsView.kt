@@ -74,10 +74,9 @@ class TouchControlsView(
         val baseY = h * 0.73f
         val gap = unit * 0.95f
 
-        // Y é um botão Android dedicado na GameActivity para garantir
-        // DOWN/UP independentes e multitouch confiável com B.
+        // X é desenhado separadamente pela GameActivity como botão de dupla função.
+        // Y foi removido da interface. A e B permanecem diretos no RetroPad.
         actionButtons = listOf(
-            CircleButton(rightX, baseY - gap, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_X, "X"),
             CircleButton(rightX + gap, baseY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_A, "A"),
             CircleButton(rightX, baseY + gap, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_B, "B"),
         )
