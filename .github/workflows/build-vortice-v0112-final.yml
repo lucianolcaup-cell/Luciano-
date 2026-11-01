@@ -64,7 +64,8 @@ jobs:
           grep -F 'bufferedSafe' src/app/src/main/kotlin/dev/limitedio/pipetv/media/SponsorBlock.kt
           grep -F 'if (!musicMode && !longForm) SponsorBlock.load' src/app/src/main/kotlin/dev/limitedio/pipetv/media/Session.kt
           if grep -RniE 'globoplay|com\.globo|globo.?play|Globo ao vivo' src/app/src/main 2>/dev/null; then exit 1; fi
-          if grep -RniE 'AIza[0-9A-Za-z_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|api[_-]?key\s*=\s*["'"'][^"'"']+' src/app/src/main 2>/dev/null; then exit 1; fi
+          if grep -RniE 'AIza[0-9A-Za-z_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' src/app/src/main 2>/dev/null; then exit 1; fi
+          if grep -RniE 'api[_-]?key[[:space:]]*=' src/app/src/main 2>/dev/null; then exit 1; fi
 
       - name: Verify Android SDK
         shell: bash
