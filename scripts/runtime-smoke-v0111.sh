@@ -31,14 +31,12 @@ start_app() {
 
 adb install -r "$APK" || exit 1
 adb logcat -c
-start_app
 
-# Valida caminho inicial.
+# Canais Abertos.
+start_app
 adb shell input keyevent 23
 sleep 4
 alive || capture_and_fail 'App morreu após o primeiro OK'
-
-# Entra em Canais Abertos: Home -> Search -> Music -> Canais Abertos.
 adb shell input keyevent 21
 sleep 1
 adb shell input keyevent 20
@@ -48,11 +46,52 @@ adb shell input keyevent 22
 sleep 15
 alive || capture_and_fail 'App morreu durante carregamento de Canais Abertos'
 
-# Reinicia e repete o smoke de reprodução já aprovado na v0.1.10.
+# Music: entra no gênero, abre o primeiro álbum e tenta iniciar a primeira faixa.
+# Este fluxo valida que abrir álbum não herda contexto de Filme/vídeo.
+start_app
+adb shell input keyevent 21
+sleep 1
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 22
+sleep 10
+alive || capture_and_fail 'App morreu ao entrar no Music'
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 23
+sleep 12
+alive || capture_and_fail 'App morreu ao buscar álbuns por gênero'
+adb shell input keyevent 23
+sleep 8
+alive || capture_and_fail 'App morreu ao abrir um álbum do Music'
+adb shell input keyevent 23
+sleep 8
+alive || capture_and_fail 'App morreu ao tocar faixa de um álbum'
+
+# Filmes: navega até Popular e seleciona Filmes; não pode permanecer num estado fatal/travado.
+start_app
+adb shell input keyevent 21
+sleep 1
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 20
+adb shell input keyevent 22
+sleep 8
+alive || capture_and_fail 'App morreu ao entrar em Popular'
+adb shell input keyevent 22
+adb shell input keyevent 22
+adb shell input keyevent 22
+adb shell input keyevent 22
+adb shell input keyevent 22
+sleep 15
+alive || capture_and_fail 'App morreu durante carregamento da aba Filmes'
+
+# Reprodução de vídeo em Em alta — regressão do crash corrigido na v0.1.10.
 start_app
 adb shell input keyevent 23
 sleep 4
-alive || capture_and_fail 'App morreu após OK no segundo ciclo'
+alive || capture_and_fail 'App morreu após OK no ciclo de vídeo'
 adb shell input keyevent 21
 sleep 1
 adb shell input keyevent 20
