@@ -76,9 +76,12 @@ class TouchControlsView(
 
         // X é desenhado separadamente pela GameActivity como botão de dupla função.
         // Y foi removido da interface. A e B permanecem diretos no RetroPad.
+        // Triângulo de ação: X no topo (GameActivity), A e B alinhados abaixo.
+        val bottomY = baseY + (gap * 0.48f)
+        val bottomOffsetX = gap * 0.72f
         actionButtons = listOf(
-            CircleButton(rightX + gap, baseY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_A, "A"),
-            CircleButton(rightX, baseY + gap, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_B, "B"),
+            CircleButton(rightX - bottomOffsetX, bottomY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_A, "A"),
+            CircleButton(rightX + bottomOffsetX, bottomY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_B, "B"),
         )
 
         val centerY = h * 0.915f
