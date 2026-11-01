@@ -4,6 +4,8 @@ from pathlib import Path
 ROOT = Path("vendor/LibretroDroid")
 CPP = ROOT / "libretrodroid/src/main/cpp/shadermanager.cpp"
 GRADLE = ROOT / "libretrodroid/build.gradle"
+RUMBLE_H = ROOT / "libretrodroid/src/main/cpp/rumble.h"
+JAVAUTILS_H = ROOT / "libretrodroid/src/main/cpp/utils/javautils.h"
 
 if not CPP.is_file():
     raise SystemExit(f"LibretroDroid não encontrado: {CPP}")
@@ -144,6 +146,24 @@ gradle = gradle.replace(
 )
 GRADLE.write_text(gradle, encoding="utf-8")
 
+# NDK 27 deixou de fornecer alguns includes transitivos que o código antigo
+# usava implicitamente. std::function pertence a <functional>; declarar isso
+# nos próprios headers mantém o fonte compatível e standards-compliant.
+def ensure_functional_header(path: Path) -> None:
+    if not path.is_file():
+        raise SystemExit(f"Header esperado não encontrado: {path}")
+    text = path.read_text(encoding="utf-8")
+    if "#include <functional>" not in text:
+        include_pos = text.find("#include")
+        if include_pos >= 0:
+            text = text[:include_pos] + "#include <functional>\n" + text[include_pos:]
+        else:
+            text = "#include <functional>\n" + text
+        path.write_text(text, encoding="utf-8")
+
+for header in (RUMBLE_H, JAVAUTILS_H):
+    ensure_functional_header(header)
+
 # Verificações fail-fast.
 final = CPP.read_text(encoding="utf-8")
 final_gradle = GRADLE.read_text(encoding="utf-8")
@@ -152,4 +172,6 @@ assert final.count("donkeyMasterVertex") >= 2
 assert final.count("cut3UpscalePass2Fragment") >= 2
 assert "$kotlin_version" not in final_gradle
 assert "compileSdkVersion 35" in final_gradle
-print("[OK] LibretroDroid custom: CUT3 + ScaleMaster adaptativo (4 passes)")
+assert "#include <functional>" in RUMBLE_H.read_text(encoding="utf-8")
+assert "#include <functional>" in JAVAUTILS_H.read_text(encoding="utf-8")
+print("[OK] LibretroDroid custom: CUT3 + ScaleMaster adaptativo (4 passes) + NDK 27")
