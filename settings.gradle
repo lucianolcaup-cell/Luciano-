@@ -17,3 +17,5 @@ dependencyResolutionManagement {
 
 rootProject.name = 'SNESFlow'
 include ':app'
+include ':libretrodroid'
+project(':libretrodroid').projectDir = file('vendor/LibretroDroid/libretrodroid')
