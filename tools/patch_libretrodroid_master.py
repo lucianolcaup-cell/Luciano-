@@ -78,19 +78,18 @@ void main() {
     );
     edge = max(edge, diagEdge * 0.70);
 
-    // Mais força em letras/HUD/contornos; menos em áreas suaves para não granularizar fundos.
     mediump float edgeGate = smoothstep(0.025, 0.30, edge);
     mediump float amount = mix(0.10, 0.34, edgeGate);
     mediump vec3 sharpened = c + (c - localAvg) * amount;
 
-    // Anti-ringing: nenhum canal pode criar pico fora da vizinhança imediata.
+    // Anti-ringing: limita o resultado à faixa real da vizinhança 3x3.
     mediump vec3 lo = min(c, min(min(l, r), min(u, d)));
     mediump vec3 hi = max(c, max(max(l, r), max(u, d)));
     lo = min(lo, min(min(ul, ur), min(dl, dr)));
     hi = max(hi, max(max(ul, ur), max(dl, dr)));
     sharpened = clamp(sharpened, lo, hi);
 
-    // Microcontraste controlado para aumentar leitura do texto sem saturar sprites.
+    // Microcontraste leve somente onde o detector encontrou uma borda real.
     mediump vec3 contrast = (sharpened - vec3(0.5)) * 1.025 + vec3(0.5);
     mediump vec3 finalColor = mix(sharpened, contrast, 0.55 * edgeGate);
     gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), 1.0);
@@ -134,16 +133,23 @@ if replacement not in source:
 
 CPP.write_text(source, encoding="utf-8")
 
-# Alinhar o módulo local ao SDK do projeto principal.
+# Alinhar o módulo local ao toolchain do projeto principal.
 gradle = GRADLE.read_text(encoding="utf-8")
 gradle = gradle.replace('compileSdkVersion 33', 'compileSdkVersion 35')
 gradle = gradle.replace('buildToolsVersion "34.0.0"', 'buildToolsVersion "35.0.0"')
 gradle = gradle.replace('targetSdkVersion 31', 'targetSdkVersion 35')
+gradle = gradle.replace(
+    'implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"',
+    'implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.0.21"',
+)
 GRADLE.write_text(gradle, encoding="utf-8")
 
 # Verificações fail-fast.
 final = CPP.read_text(encoding="utf-8")
+final_gradle = GRADLE.read_text(encoding="utf-8")
 assert "donkeyMasterFragment" in final
 assert final.count("donkeyMasterVertex") >= 2
 assert final.count("cut3UpscalePass2Fragment") >= 2
+assert "$kotlin_version" not in final_gradle
+assert "compileSdkVersion 35" in final_gradle
 print("[OK] LibretroDroid custom: CUT3 + ScaleMaster adaptativo (4 passes)")
