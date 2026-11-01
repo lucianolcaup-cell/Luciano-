@@ -140,7 +140,12 @@ class GameActivity : ComponentActivity() {
         xButtonView = xButton
         root.addView(xButton, FrameLayout.LayoutParams(1, 1))
 
-        val shield = View(this).apply {
+        val shield = TextView(this).apply {
+            text = "( Projeto desenvolvido por Bolete, saudações jogadores)"
+            setTextColor(Color.WHITE)
+            textSize = 22f
+            gravity = Gravity.CENTER
+            setPadding(dp(32), dp(24), dp(32), dp(24))
             setBackgroundColor(Color.BLACK)
             isClickable = true
             isFocusable = true
@@ -236,7 +241,6 @@ class GameActivity : ComponentActivity() {
                     if (xHoldActivated) {
                         sendGameKey(KeyEvent.KEYCODE_BUTTON_Y, false)
                     } else if (event.actionMasked == MotionEvent.ACTION_UP) {
-                        // Toque curto preserva a função original do X: arremessar/desmontar.
                         sendGameKey(KeyEvent.KEYCODE_BUTTON_X, true)
                         uiHandler.postDelayed({ sendGameKey(KeyEvent.KEYCODE_BUTTON_X, false) }, X_TAP_PULSE_MS)
                     }
