@@ -18,12 +18,7 @@ def rw(rel: str, old: str, new: str, count: int = 1):
         raise RuntimeError(f"Expected snippet not found in {rel}: {old[:180]!r}")
     write(rel, s.replace(old, new, count))
 
-# -----------------------------------------------------------------------------
-# Quality: prioritize the selected HEIGHT first, codec second.
-# Previous logic preferred any MP4/H.264 stream, even a lower 1080p stream,
-# over an available 1440p/2160p WebM stream. That made the menu say 4K while
-# actual playback could still be 1080p.
-# -----------------------------------------------------------------------------
+# 1) Respect requested resolution first; codec preference comes second.
 sources = "app/src/main/kotlin/dev/limitedio/pipetv/media/Sources.kt"
 rw(sources,
 '''    /** Video heights that can actually be played for [info], best first. */
@@ -50,9 +45,6 @@ rw(sources,
             .sortedByDescending { it.height }
         val audio = info.audioStreams.filter { it.isUrl }
             .sortedWith(compareByDescending<AudioStream> { it.format == MediaFormat.M4A }.thenByDescending { it.averageBitrate })
-
-        // Respect the requested resolution first. Only then choose the preferred codec
-        // among streams at that exact height. This is what makes 2160p truly request 4K.
         val targetHeight = video.maxOfOrNull { it.height }
         val atTarget = if (targetHeight == null) emptyList() else video.filter { it.height == targetHeight }
         val best = atTarget.firstOrNull { it.format == MediaFormat.MPEG_4 }
@@ -60,29 +52,7 @@ rw(sources,
             ?: video.firstOrNull()
 ''')
 
-# -----------------------------------------------------------------------------
-# Player menu: make 4K/1440p labels explicit and only show actually playable heights.
-# Also expose the resolution rendered by ExoPlayer so the TV can confirm that 4K
-# was actually applied instead of only selected in the menu.
-# -----------------------------------------------------------------------------
-engine = "app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt"
-rw(engine,
-'''    @Volatile var aspect = 16f / 9f; private set
-''',
-'''    @Volatile var aspect = 16f / 9f; private set
-    @Volatile var videoHeight = 0; private set
-''')
-rw(engine,
-'''        override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
-            if (size.width > 0 && size.height > 0) {
-                val ar = size.width * size.pixelWidthHeightRatio / size.height
-''',
-'''        override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
-            if (size.width > 0 && size.height > 0) {
-                videoHeight = size.height
-                val ar = size.width * size.pixelWidthHeightRatio / size.height
-''')
-
+# 2) Clear labels for 1440p / 2160p in the quality selector.
 menu = "app/src/main/kotlin/dev/limitedio/pipetv/ui/PlayerMenu.kt"
 rw(menu,
 '''object PlayerMenu {
@@ -95,34 +65,6 @@ rw(menu,
         h >= 1440 -> "1440p · QHD"
         else -> "${h}p"
     }
-    private fun qualityHelp(): String {
-        val actual = Engine.videoHeight
-        return if (S.cur.code == "pt") {
-            if (actual > 0) "Aplicação imediata · reprodução atual: ${qualityLabel(actual)}" else "Aplicação imediata neste vídeo"
-        } else {
-            if (actual > 0) "Applies immediately · current playback: ${qualityLabel(actual)}" else "Applies immediately to this video"
-        }
-    }
-''')
-
-rw(menu,
-'''    private fun qualityLabel(h: Int) = when {
-        h >= 2160 -> "2160p · 4K"
-        h >= 1440 -> "1440p · QHD"
-        else -> "${h}p"
-    }
-''',
-'''    private fun qualityLabel(h: Int) = when {
-        h >= 2160 -> "2160p · 4K"
-        h >= 1440 -> "1440p · QHD"
-        else -> "${h}p"
-    }
-''', 0)
-
-rw(menu,
-'''                { if (S.cur.code == "pt") "Somente neste vídeo" else "This video only" },
-''',
-'''                { qualityHelp() },
 ''')
 rw(menu,
 '''                { listOf(defaultQuality) + heights.map { "${it}p" } },
@@ -130,11 +72,7 @@ rw(menu,
 '''                { listOf(defaultQuality) + heights.map(::qualityLabel) },
 ''')
 
-# -----------------------------------------------------------------------------
-# Manual quality must be authoritative. Clear any previous temporary safety cap
-# when the viewer explicitly chooses 1440p/2160p and do not silently downgrade
-# that manual choice after a buffering event.
-# -----------------------------------------------------------------------------
+# 3) Manual quality is authoritative: remove any previous temporary safety cap.
 session = "app/src/main/kotlin/dev/limitedio/pipetv/media/Session.kt"
 rw(session,
 '''    fun pickHeight(height: Int?) { manualHeight = height; cap = 2160; reload(); changed() }
@@ -156,17 +94,12 @@ rw(recovery,
 '''        if (Session.musicMode || Session.info == null || Session.manualHeight != null || failed) return
 ''')
 
-# -----------------------------------------------------------------------------
-# Fast open: don't block playback while fetching recommendations/related videos.
-# Stream extraction is the critical path; related content is loaded afterwards.
-# Preserve the Music flag captured before opening.
-# -----------------------------------------------------------------------------
+# 4) Fast open: don't wait for related/recommendation extraction before starting playback.
 rw(session,
 '''    private class Opened(val info: StreamInfo, val related: List<Item>, val resume: Long, val music: Boolean)
 ''',
 '''    private class Opened(val info: StreamInfo, val resume: Long, val music: Boolean)
 ''')
-
 rw(session,
 '''        Bg.io({
             val si = Yt.stream(it.url)
@@ -186,8 +119,6 @@ rw(session,
             pending = null
             if (r == null) onOpenFailed() else {
                 swap(it, r)
-                // Recommendations are not needed to start playback. Load them after ExoPlayer
-                // has already received the selected stream.
                 Bg.io({ runCatching { Yt.related(r.info) }.getOrDefault(emptyList()) }) { rel ->
                     if (t == token && item?.id == it.id) {
                         related = rel.orEmpty()
@@ -198,11 +129,10 @@ rw(session,
             changed()
         }
 ''')
-
 rw(session,
 '''        item = it; info = o.info; related = o.related; cap = 2160; safe = 0; manualHeight = null; musicMode = o.music
 ''',
 '''        item = it; info = o.info; related = emptyList(); cap = 2160; safe = 0; manualHeight = null; musicMode = o.music
 ''')
 
-print("VórticeTv v0.1.11 actual 4K + fast-open + manual quality patch applied")
+print("VórticeTv v0.1.11 real 4K + manual quality + fast-open patch applied")
