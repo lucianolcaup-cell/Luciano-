@@ -53,7 +53,9 @@ for patch in \
   vortise_v0110_runtime_stability.py \
   vortise_channels_perf_v0111.py \
   vortise_popular_br_v0111.py \
-  vortise_context_isolation_v0111.py
+  vortise_context_isolation_v0111.py \
+  vortise_movies_priority_v0111.py \
+  vortise_search_reset_v0111.py
 do
   python3 "$BRANDING/patches/$patch" "$ROOT"
 done
