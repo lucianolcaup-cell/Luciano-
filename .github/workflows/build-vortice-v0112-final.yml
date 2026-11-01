@@ -84,9 +84,18 @@ jobs:
       - name: Android lint
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           cd src
+          set +e
           ./gradlew lintRelease -Pnoupdater -Pvname=0.1.12 -Pvcode=13 --stacktrace
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo '===== FULL ANDROID LINT REPORT ====='
+            report='app/build/intermediates/lint_intermediate_text_report/release/lintReportRelease/lint-results-release.txt'
+            if [ -f "$report" ]; then cat "$report"; fi
+            exit "$rc"
+          fi
 
       - name: Build signed release APK
         shell: bash
