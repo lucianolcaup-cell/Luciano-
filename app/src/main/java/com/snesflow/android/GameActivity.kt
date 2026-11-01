@@ -34,7 +34,7 @@ class GameActivity : ComponentActivity() {
         const val EXTRA_ROM_PATH = "rom_path"
         private const val X_HOLD_TO_RUN_MS = 90L
         private const val X_TAP_PULSE_MS = 70L
-        private const val INTRO_REVEAL_MS = 3000L
+        private const val INTRO_REVEAL_MS = 8000L
         private const val INTRO_PULSE_MS = 65L
     }
 
@@ -74,7 +74,7 @@ class GameActivity : ComponentActivity() {
             savesDirectory = savesDir.absolutePath
             saveRAMState = sramFile.takeIf { it.isFile }?.readBytes()
 
-            // MASTER HD+ v0.1.8: reconstrução de borda mais forte sem blur analógico.
+            // MASTER HD+ v0.1.9: reconstrução de borda forte, sem blur analógico.
             shader = ShaderConfig.CUT3(
                 useDynamicBlend = true,
                 blendMinContrastEdge = 0.01f,
@@ -171,7 +171,7 @@ class GameActivity : ComponentActivity() {
             val baseY = height * 0.73f
             val gap = unit * 0.95f
             val centerX = rightX
-            val centerY = baseY - gap
+            val centerY = baseY - (gap * 0.70f)
 
             xButton.layoutParams = FrameLayout.LayoutParams(size, size).apply {
                 leftMargin = (centerX - radius).roundToInt()
@@ -183,11 +183,21 @@ class GameActivity : ComponentActivity() {
     }
 
     private fun scheduleIntroBypass() {
-        // A tela de aviso pertence ao patch PT-BR, não ao frontend.
-        // Mantém os primeiros frames ocultos e envia B, que é inócuo no menu/título,
-        // até ultrapassar a tela de crédito sem exibi-la ao usuário.
-        listOf(700L, 1300L, 1900L, 2500L).forEach { delay ->
-            uiHandler.postDelayed({ pulseIntroSkipButton() }, delay)
+        // O aviso FURT pertence à ROM traduzida. A v0.1.9 mantém o vídeo do core
+        // totalmente coberto durante todo o boot e usa uma sequência de entradas
+        // para ultrapassar telas de crédito/título antes de revelar a imagem.
+        val sequence = listOf(
+            1200L to KeyEvent.KEYCODE_BUTTON_B,
+            2000L to KeyEvent.KEYCODE_BUTTON_A,
+            2800L to KeyEvent.KEYCODE_BUTTON_START,
+            3600L to KeyEvent.KEYCODE_BUTTON_B,
+            4400L to KeyEvent.KEYCODE_BUTTON_A,
+            5200L to KeyEvent.KEYCODE_BUTTON_START,
+            6000L to KeyEvent.KEYCODE_BUTTON_B,
+            6800L to KeyEvent.KEYCODE_BUTTON_A,
+        )
+        sequence.forEach { (delay, key) ->
+            uiHandler.postDelayed({ pulseIntroSkipButton(key) }, delay)
         }
 
         uiHandler.postDelayed({
@@ -197,11 +207,11 @@ class GameActivity : ComponentActivity() {
         }, INTRO_REVEAL_MS)
     }
 
-    private fun pulseIntroSkipButton() {
+    private fun pulseIntroSkipButton(key: Int) {
         if (!::retroView.isInitialized || isFinishing || isDestroyed) return
-        sendGameKey(KeyEvent.KEYCODE_BUTTON_B, true)
+        sendGameKey(key, true)
         uiHandler.postDelayed(
-            { if (::retroView.isInitialized) sendGameKey(KeyEvent.KEYCODE_BUTTON_B, false) },
+            { if (::retroView.isInitialized) sendGameKey(key, false) },
             INTRO_PULSE_MS,
         )
     }
