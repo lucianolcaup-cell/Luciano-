@@ -52,7 +52,8 @@ for patch in \
   vortise_video_smooth_v017.py \
   vortise_v0110_runtime_stability.py \
   vortise_channels_perf_v0111.py \
-  vortise_popular_br_v0111.py
+  vortise_popular_br_v0111.py \
+  vortise_context_isolation_v0111.py
 do
   python3 "$BRANDING/patches/$patch" "$ROOT"
 done
