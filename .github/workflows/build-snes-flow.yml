@@ -3,7 +3,7 @@ name: Build DonkeyK2 APK
 on:
   push:
     branches:
-      - snes-flow-android-v0.2.0
+      - snes-flow-android-v0.2.1
   workflow_dispatch:
 
 permissions:
@@ -12,7 +12,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -27,14 +27,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Android SDK 35
+      - name: Android SDK 35 + NDK + CMake
         shell: bash
         run: |
           set -euo pipefail
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          "$SDKMANAGER" \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "cmake;3.22.1" \
+            "ndk;27.0.12077973"
 
       - name: Preparar ferramentas oficiais de assinatura
         shell: bash
@@ -56,6 +61,19 @@ jobs:
           path: /tmp/android-signing-tools/
           if-no-files-found: error
           retention-days: 1
+
+      - name: Preparar LibretroDroid custom ScaleMaster
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p vendor
+          git clone --recurse-submodules https://github.com/Swordfish90/LibretroDroid.git vendor/LibretroDroid
+          cd vendor/LibretroDroid
+          git checkout 8835c3098514390a271e36983957f7bb5f40abf1
+          git submodule update --init --recursive
+          cd ../..
+          python3 tools/patch_libretrodroid_master.py
+          grep -q "donkeyMasterFragment" vendor/LibretroDroid/libretrodroid/src/main/cpp/shadermanager.cpp
 
       - name: Baixar patch PT-BR FURT
         shell: bash
@@ -97,9 +115,11 @@ jobs:
             test -s "app/src/main/jniLibs/${ABI}/snes9x_libretro_android.so"
           done
 
-      - name: Validar patch estrutural de intro
+      - name: Validar ferramentas do projeto
         shell: bash
-        run: python3 -m py_compile tools/patch_furt_intro.py
+        run: |
+          python3 -m py_compile tools/patch_furt_intro.py
+          python3 -m py_compile tools/patch_libretrodroid_master.py
 
       - name: Compilar APK debug
         shell: bash
@@ -110,12 +130,13 @@ jobs:
         run: |
           set -euo pipefail
           test -s app/build/outputs/apk/debug/app-debug.apk
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'lib/arm64-v8a/libretrodroid.so'
           sha256sum app/build/outputs/apk/debug/app-debug.apk | tee APK_SHA256.txt
 
       - name: Publicar artefato
         uses: actions/upload-artifact@v4
         with:
-          name: DonkeyK2-v0.2.0-Android
+          name: DonkeyK2-v0.2.1-ScaleMaster-Android
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             APK_SHA256.txt
