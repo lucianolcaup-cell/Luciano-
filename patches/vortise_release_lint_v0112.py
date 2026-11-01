@@ -37,8 +37,8 @@ s = read(subs)
 plain_pattern = re.compile(r"    private fun plain\(s: String\).*?\n\n    private fun parse", re.S)
 if not plain_pattern.search(s):
     raise RuntimeError("Subs.plain() block not found")
-plain_impl = '''    private fun plain(s: String): String {
-        val src = s.replace(Regex("<br\\s*/?>"), "\\n").replace(Regex("<[^>]+>"), "")
+plain_impl = r'''    private fun plain(s: String): String {
+        val src = s.replace(Regex("<br\\s*/?>"), "\n").replace(Regex("<[^>]+>"), "")
         @Suppress("DEPRECATION")
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             Html.fromHtml(src, Html.FROM_HTML_MODE_LEGACY).toString().trim()
