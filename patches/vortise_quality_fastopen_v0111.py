@@ -62,7 +62,27 @@ rw(sources,
 
 # -----------------------------------------------------------------------------
 # Player menu: make 4K/1440p labels explicit and only show actually playable heights.
+# Also expose the resolution rendered by ExoPlayer so the TV can confirm that 4K
+# was actually applied instead of only selected in the menu.
 # -----------------------------------------------------------------------------
+engine = "app/src/main/kotlin/dev/limitedio/pipetv/media/Engine.kt"
+rw(engine,
+'''    @Volatile var aspect = 16f / 9f; private set
+''',
+'''    @Volatile var aspect = 16f / 9f; private set
+    @Volatile var videoHeight = 0; private set
+''')
+rw(engine,
+'''        override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
+            if (size.width > 0 && size.height > 0) {
+                val ar = size.width * size.pixelWidthHeightRatio / size.height
+''',
+'''        override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
+            if (size.width > 0 && size.height > 0) {
+                videoHeight = size.height
+                val ar = size.width * size.pixelWidthHeightRatio / size.height
+''')
+
 menu = "app/src/main/kotlin/dev/limitedio/pipetv/ui/PlayerMenu.kt"
 rw(menu,
 '''object PlayerMenu {
@@ -75,8 +95,35 @@ rw(menu,
         h >= 1440 -> "1440p · QHD"
         else -> "${h}p"
     }
+    private fun qualityHelp(): String {
+        val actual = Engine.videoHeight
+        return if (S.cur.code == "pt") {
+            if (actual > 0) "Aplicação imediata · reprodução atual: ${qualityLabel(actual)}" else "Aplicação imediata neste vídeo"
+        } else {
+            if (actual > 0) "Applies immediately · current playback: ${qualityLabel(actual)}" else "Applies immediately to this video"
+        }
+    }
 ''')
 
+rw(menu,
+'''    private fun qualityLabel(h: Int) = when {
+        h >= 2160 -> "2160p · 4K"
+        h >= 1440 -> "1440p · QHD"
+        else -> "${h}p"
+    }
+''',
+'''    private fun qualityLabel(h: Int) = when {
+        h >= 2160 -> "2160p · 4K"
+        h >= 1440 -> "1440p · QHD"
+        else -> "${h}p"
+    }
+''', 0)
+
+rw(menu,
+'''                { if (S.cur.code == "pt") "Somente neste vídeo" else "This video only" },
+''',
+'''                { qualityHelp() },
+''')
 rw(menu,
 '''                { listOf(defaultQuality) + heights.map { "${it}p" } },
 ''',
@@ -84,11 +131,36 @@ rw(menu,
 ''')
 
 # -----------------------------------------------------------------------------
+# Manual quality must be authoritative. Clear any previous temporary safety cap
+# when the viewer explicitly chooses 1440p/2160p and do not silently downgrade
+# that manual choice after a buffering event.
+# -----------------------------------------------------------------------------
+session = "app/src/main/kotlin/dev/limitedio/pipetv/media/Session.kt"
+rw(session,
+'''    fun pickHeight(height: Int?) { manualHeight = height; cap = 2160; reload(); changed() }
+''',
+'''    fun pickHeight(height: Int?) {
+        manualHeight = height
+        cap = 2160
+        safe = 0
+        Recovery.reset()
+        reload()
+        changed()
+    }
+''')
+
+recovery = "app/src/main/kotlin/dev/limitedio/pipetv/media/Recovery.kt"
+rw(recovery,
+'''        if (Session.musicMode || Session.info == null || failed) return
+''',
+'''        if (Session.musicMode || Session.info == null || Session.manualHeight != null || failed) return
+''')
+
+# -----------------------------------------------------------------------------
 # Fast open: don't block playback while fetching recommendations/related videos.
 # Stream extraction is the critical path; related content is loaded afterwards.
 # Preserve the Music flag captured before opening.
 # -----------------------------------------------------------------------------
-session = "app/src/main/kotlin/dev/limitedio/pipetv/media/Session.kt"
 rw(session,
 '''    private class Opened(val info: StreamInfo, val related: List<Item>, val resume: Long, val music: Boolean)
 ''',
@@ -133,4 +205,4 @@ rw(session,
 '''        item = it; info = o.info; related = emptyList(); cap = 2160; safe = 0; manualHeight = null; musicMode = o.music
 ''')
 
-print("VórticeTv v0.1.11 actual 4K + fast-open patch applied")
+print("VórticeTv v0.1.11 actual 4K + fast-open + manual quality patch applied")
