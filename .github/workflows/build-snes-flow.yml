@@ -1,9 +1,9 @@
-name: Build SNES Flow APK
+name: Build DonkeyK2 APK
 
 on:
   push:
     branches:
-      - snes-flow-android-v0.1.1
+      - snes-flow-android-v0.1.2
   workflow_dispatch:
 
 permissions:
@@ -48,7 +48,6 @@ jobs:
           LIBCPP="$(ldd "$ZIPALIGN" | awk '/libc\+\+\.so/ && $3 ~ /^\// {print $3; exit}')"
           test -n "$LIBCPP"
           cp -L "$LIBCPP" /tmp/android-signing-tools/libc++.so
-          LD_LIBRARY_PATH=/tmp/android-signing-tools /tmp/android-signing-tools/zipalign -h >/dev/null 2>&1 || true
 
       - name: Publicar ferramentas de assinatura
         uses: actions/upload-artifact@v4
@@ -112,7 +111,7 @@ jobs:
       - name: Publicar artefato
         uses: actions/upload-artifact@v4
         with:
-          name: SNES-Flow-v0.1.1-Android
+          name: DonkeyK2-v0.1.2-Android
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             APK_SHA256.txt
