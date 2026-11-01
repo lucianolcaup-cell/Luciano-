@@ -73,9 +73,11 @@ class TouchControlsView(
         val rightX = w * 0.895f
         val baseY = h * 0.73f
         val gap = unit * 0.95f
+
+        // Y é um botão Android dedicado na GameActivity para garantir
+        // DOWN/UP independentes e multitouch confiável com B.
         actionButtons = listOf(
             CircleButton(rightX, baseY - gap, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_X, "X"),
-            CircleButton(rightX - gap, baseY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_Y, "Y"),
             CircleButton(rightX + gap, baseY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_A, "A"),
             CircleButton(rightX, baseY + gap, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_B, "B"),
         )
@@ -152,8 +154,6 @@ class TouchControlsView(
                         continue
                     }
 
-                    // Face buttons and SELECT/START are sticky: once pressed,
-                    // remain active until finger-up. This is required for holding Y.
                     if (pointerKeys.containsKey(id)) continue
 
                     pointerActions[id]?.let { (rect, _) ->
@@ -260,8 +260,7 @@ class TouchControlsView(
 
     private fun keyAt(x: Float, y: Float): Int? {
         actionButtons.firstOrNull { button ->
-            val hitScale = if (button.key == KeyEvent.KEYCODE_BUTTON_Y) 1.42f else 1.22f
-            hypot(x - button.cx, y - button.cy) <= button.r * hitScale
+            hypot(x - button.cx, y - button.cy) <= button.r * 1.22f
         }?.let { return it.key }
 
         rects.firstOrNull { it.key != null && it.rect.contains(x, y) }?.let { return it.key }
