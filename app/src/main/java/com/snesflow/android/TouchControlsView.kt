@@ -146,21 +146,18 @@ class TouchControlsView(
                     val id = event.getPointerId(i)
                     val x = event.getX(i)
                     val y = event.getY(i)
+
                     if (stickPointerId == id) {
                         updateStick(x, y)
                         continue
                     }
+
+                    // Face buttons and SELECT/START are sticky: once pressed,
+                    // remain active until finger-up. This is required for holding Y.
+                    if (pointerKeys.containsKey(id)) continue
+
                     pointerActions[id]?.let { (rect, _) ->
                         if (!rect.contains(x, y)) pointerActions.remove(id)
-                    }
-                    val current = pointerKeys[id]
-                    val target = keyAt(x, y)
-                    if (current != target) {
-                        current?.let { releaseKey(it) }
-                        if (target == null) pointerKeys.remove(id) else {
-                            pointerKeys[id] = target
-                            pressKey(target)
-                        }
                     }
                 }
             }
@@ -262,7 +259,11 @@ class TouchControlsView(
     }
 
     private fun keyAt(x: Float, y: Float): Int? {
-        actionButtons.firstOrNull { hypot(x - it.cx, y - it.cy) <= it.r * 1.18f }?.let { return it.key }
+        actionButtons.firstOrNull { button ->
+            val hitScale = if (button.key == KeyEvent.KEYCODE_BUTTON_Y) 1.42f else 1.22f
+            hypot(x - button.cx, y - button.cy) <= button.r * hitScale
+        }?.let { return it.key }
+
         rects.firstOrNull { it.key != null && it.rect.contains(x, y) }?.let { return it.key }
         return null
     }
