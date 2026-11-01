@@ -84,14 +84,12 @@ void main() {
     mediump float amount = mix(0.10, 0.34, edgeGate);
     mediump vec3 sharpened = c + (c - localAvg) * amount;
 
-    // Anti-ringing: limita o resultado à faixa real da vizinhança 3x3.
     mediump vec3 lo = min(c, min(min(l, r), min(u, d)));
     mediump vec3 hi = max(c, max(max(l, r), max(u, d)));
     lo = min(lo, min(min(ul, ur), min(dl, dr)));
     hi = max(hi, max(max(ul, ur), max(dl, dr)));
     sharpened = clamp(sharpened, lo, hi);
 
-    // Microcontraste leve somente onde o detector encontrou uma borda real.
     mediump vec3 contrast = (sharpened - vec3(0.5)) * 1.025 + vec3(0.5);
     mediump vec3 finalColor = mix(sharpened, contrast, 0.55 * edgeGate);
     gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), 1.0);
@@ -135,7 +133,6 @@ if replacement not in source:
 
 CPP.write_text(source, encoding="utf-8")
 
-# Alinhar o módulo local ao toolchain do projeto principal.
 gradle = GRADLE.read_text(encoding="utf-8")
 gradle = gradle.replace('compileSdkVersion 33', 'compileSdkVersion 35')
 gradle = gradle.replace('buildToolsVersion "34.0.0"', 'buildToolsVersion "35.0.0"')
@@ -144,11 +141,18 @@ gradle = gradle.replace(
     'implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"',
     'implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.0.21"',
 )
+abi_block = '''        ndk {
+            abiFilters "arm64-v8a", "armeabi-v7a"
+        }
+
+'''
+if 'abiFilters "arm64-v8a", "armeabi-v7a"' not in gradle:
+    anchor = '        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"\n'
+    if anchor not in gradle:
+        raise SystemExit("Ponto de inserção de abiFilters não encontrado")
+    gradle = gradle.replace(anchor, abi_block + anchor, 1)
 GRADLE.write_text(gradle, encoding="utf-8")
 
-# NDK 27 deixou de fornecer alguns includes transitivos que o código antigo
-# usava implicitamente. std::function pertence a <functional>; declarar isso
-# nos próprios headers mantém o fonte compatível e standards-compliant.
 def ensure_functional_header(path: Path) -> None:
     if not path.is_file():
         raise SystemExit(f"Header esperado não encontrado: {path}")
@@ -164,7 +168,6 @@ def ensure_functional_header(path: Path) -> None:
 for header in (RUMBLE_H, JAVAUTILS_H):
     ensure_functional_header(header)
 
-# Verificações fail-fast.
 final = CPP.read_text(encoding="utf-8")
 final_gradle = GRADLE.read_text(encoding="utf-8")
 assert "donkeyMasterFragment" in final
@@ -172,6 +175,7 @@ assert final.count("donkeyMasterVertex") >= 2
 assert final.count("cut3UpscalePass2Fragment") >= 2
 assert "$kotlin_version" not in final_gradle
 assert "compileSdkVersion 35" in final_gradle
+assert 'abiFilters "arm64-v8a", "armeabi-v7a"' in final_gradle
 assert "#include <functional>" in RUMBLE_H.read_text(encoding="utf-8")
 assert "#include <functional>" in JAVAUTILS_H.read_text(encoding="utf-8")
-print("[OK] LibretroDroid custom: CUT3 + ScaleMaster adaptativo (4 passes) + NDK 27")
+print("[OK] LibretroDroid custom: CUT3 + ScaleMaster 4 passes + NDK 27 + ARM-only")
