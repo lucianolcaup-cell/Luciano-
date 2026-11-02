@@ -2,14 +2,9 @@ package com.snesflow.android
 
 import android.content.pm.ActivityInfo
 import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.Gravity
-import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -31,8 +26,6 @@ class GameActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_ROM_PATH = "rom_path"
-        private const val X_HOLD_TO_RUN_MS = 90L
-        private const val X_TAP_PULSE_MS = 70L
         private const val CREDIT_REVEAL_MS = 1800L
     }
 
@@ -41,10 +34,6 @@ class GameActivity : ComponentActivity() {
     private lateinit var sramFile: File
     private lateinit var stateFile: File
 
-    private val uiHandler = Handler(Looper.getMainLooper())
-    private var xHoldActivated = false
-    private var xHoldRunnable: Runnable? = null
-    private var xButtonView: TextView? = null
     private var controlsView: TouchControlsView? = null
     private var creditShield: View? = null
 
@@ -71,7 +60,7 @@ class GameActivity : ComponentActivity() {
             savesDirectory = savesDir.absolutePath
             saveRAMState = sramFile.takeIf { it.isFile }?.readBytes()
 
-            // MASTER HD+ TEXT v0.2.0: bordas e textos mais definidos sem blur analógico.
+            // Gráfico aprovado da v0.2.0/v0.2.2. Não alterar nesta correção de input.
             shader = ShaderConfig.CUT3(
                 useDynamicBlend = true,
                 blendMinContrastEdge = 0.00f,
@@ -118,6 +107,8 @@ class GameActivity : ComponentActivity() {
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
 
+        // v0.2.3: X/A/B/joystick ficam na MESMA View multitouch.
+        // Isso permite manter Y (via X segurado) + B simultaneamente para pular carregando objetos.
         val controls = TouchControlsView(
             this,
             onKey = { key, pressed -> sendGameKey(key, pressed) },
@@ -131,12 +122,6 @@ class GameActivity : ComponentActivity() {
             controls,
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
-
-        val xButton = buildSmartXButton().apply {
-            visibility = View.INVISIBLE
-        }
-        xButtonView = xButton
-        root.addView(xButton, FrameLayout.LayoutParams(1, 1))
 
         val shield = TextView(this).apply {
             text = "Projeto desenvolvido por Bolete, saudações jogadores"
@@ -158,90 +143,9 @@ class GameActivity : ComponentActivity() {
         root.postDelayed({
             creditShield?.visibility = View.GONE
             controlsView?.visibility = View.VISIBLE
-            xButtonView?.visibility = View.VISIBLE
         }, CREDIT_REVEAL_MS)
 
-        root.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-            val width = right - left
-            val height = bottom - top
-            if (width <= 0 || height <= 0) return@addOnLayoutChangeListener
-
-            val unit = (height * 0.105f).coerceIn(dp(42).toFloat(), dp(78).toFloat())
-            val radius = unit * 0.48f
-            val size = (radius * 2f).roundToInt()
-            val rightX = width * 0.89f
-            val baseY = height * 0.73f
-            val gap = unit * 0.95f
-            val centerX = rightX
-            val centerY = baseY - (gap * 1.10f)
-
-            xButton.layoutParams = FrameLayout.LayoutParams(size, size).apply {
-                leftMargin = (centerX - radius).roundToInt()
-                topMargin = (centerY - radius).roundToInt()
-            }
-        }
-
         return root
-    }
-
-    private fun buildSmartXButton(): TextView = TextView(this).apply {
-        text = "X"
-        setTextColor(Color.WHITE)
-        textSize = 20f
-        gravity = Gravity.CENTER
-        background = faceButtonBackground(false)
-        isClickable = true
-        isFocusable = true
-
-        setOnTouchListener { view, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    cancelXHold()
-                    xHoldActivated = false
-                    view.background = faceButtonBackground(true)
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-
-                    val hold = Runnable {
-                        if (!xHoldActivated) {
-                            xHoldActivated = true
-                            sendGameKey(KeyEvent.KEYCODE_BUTTON_Y, true)
-                        }
-                    }
-                    xHoldRunnable = hold
-                    uiHandler.postDelayed(hold, X_HOLD_TO_RUN_MS)
-                    true
-                }
-
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    cancelXHold()
-
-                    if (xHoldActivated) {
-                        sendGameKey(KeyEvent.KEYCODE_BUTTON_Y, false)
-                    } else if (event.actionMasked == MotionEvent.ACTION_UP) {
-                        sendGameKey(KeyEvent.KEYCODE_BUTTON_X, true)
-                        uiHandler.postDelayed({ sendGameKey(KeyEvent.KEYCODE_BUTTON_X, false) }, X_TAP_PULSE_MS)
-                    }
-
-                    xHoldActivated = false
-                    view.background = faceButtonBackground(false)
-                    true
-                }
-
-                else -> true
-            }
-        }
-    }
-
-    private fun cancelXHold() {
-        xHoldRunnable?.let(uiHandler::removeCallbacks)
-        xHoldRunnable = null
-    }
-
-    private fun releaseSmartX() {
-        cancelXHold()
-        if (xHoldActivated) sendGameKey(KeyEvent.KEYCODE_BUTTON_Y, false)
-        xHoldActivated = false
-        xButtonView?.background = faceButtonBackground(false)
     }
 
     private fun sendGameKey(key: Int, pressed: Boolean) {
@@ -251,12 +155,6 @@ class GameActivity : ComponentActivity() {
         )
     }
 
-    private fun faceButtonBackground(pressed: Boolean): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.OVAL
-        setColor(if (pressed) Color.argb(205, 72, 72, 76) else Color.argb(118, 18, 18, 18))
-        setStroke(dp(2), Color.argb(235, 255, 255, 255))
-    }
-
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) enableImmersiveMode()
@@ -264,16 +162,10 @@ class GameActivity : ComponentActivity() {
 
     override fun onPause() {
         if (::retroView.isInitialized) {
-            releaseSmartX()
+            controlsView?.releaseAllInputs()
             saveSramSafely()
         }
         super.onPause()
-    }
-
-    override fun onDestroy() {
-        releaseSmartX()
-        uiHandler.removeCallbacksAndMessages(null)
-        super.onDestroy()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
