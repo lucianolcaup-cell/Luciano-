@@ -7,8 +7,6 @@ import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
-import android.os.Handler
-import android.os.Looper
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -22,11 +20,6 @@ class TouchControlsView(
     private val onSave: () -> Unit,
     private val onLoad: () -> Unit,
 ) : View(context) {
-
-    companion object {
-        private const val X_HOLD_TO_RUN_MS = 90L
-        private const val X_TAP_PULSE_MS = 70L
-    }
 
     private data class CircleButton(
         val cx: Float,
@@ -43,8 +36,6 @@ class TouchControlsView(
         val label: String,
         val action: (() -> Unit)? = null,
     )
-
-    private val handler = Handler(Looper.getMainLooper())
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(118, 18, 18, 18) }
     private val pressedFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(185, 70, 70, 70) }
@@ -77,10 +68,10 @@ class TouchControlsView(
     private val pointerActions = mutableMapOf<Int, Pair<RectF, () -> Unit>>()
     private val pressedKeys = mutableSetOf<Int>()
 
+    // X virtual em modo toggle: 1º toque mantém Y do SNES pressionado; 2º toque libera.
+    // Isso permite carregar barris/objetos e usar B para pular sem manter o dedo sobre X.
     private var smartXPointerId: Int? = null
-    private var smartXHoldActivated = false
-    private var smartXHoldRunnable: Runnable? = null
-    private var smartXTapReleaseRunnable: Runnable? = null
+    private var smartXLatched = false
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
@@ -101,7 +92,6 @@ class TouchControlsView(
         val baseY = h * 0.73f
         val gap = unit * 0.95f
 
-        // v0.2.3: botões maiores, mas com a mesma folga visual entre eles.
         val topY = baseY - (gap * 1.18f)
         val bottomY = baseY + (gap * 0.68f)
         val bottomOffsetX = gap * 1.25f
@@ -149,7 +139,7 @@ class TouchControlsView(
         canvas.drawCircle(stickKnobX, stickKnobY, stickKnobRadius, border)
 
         actionButtons.forEach { b ->
-            val isPressed = if (b.smartX) smartXPointerId != null else b.key in pressedKeys
+            val isPressed = if (b.smartX) smartXLatched || smartXPointerId != null else b.key in pressedKeys
             canvas.drawCircle(b.cx, b.cy, b.r, if (isPressed) pressedFill else fill)
             canvas.drawCircle(b.cx, b.cy, b.r, border)
             text.textSize = b.r * 0.70f
@@ -209,7 +199,7 @@ class TouchControlsView(
 
         actionButtonAt(x, y)?.let { button ->
             if (button.smartX) {
-                pressSmartX(id)
+                toggleSmartX(id)
             } else {
                 pointerKeys[id] = button.key
                 pressKey(button.key)
@@ -232,45 +222,17 @@ class TouchControlsView(
         }
     }
 
-    private fun pressSmartX(pointerId: Int) {
+    private fun toggleSmartX(pointerId: Int) {
         if (smartXPointerId != null) return
-
-        cancelSmartXHold()
         smartXPointerId = pointerId
-        smartXHoldActivated = false
 
-        val hold = Runnable {
-            if (smartXPointerId == pointerId && !smartXHoldActivated) {
-                smartXHoldActivated = true
-                pressKey(KeyEvent.KEYCODE_BUTTON_Y)
-            }
-        }
-        smartXHoldRunnable = hold
-        handler.postDelayed(hold, X_HOLD_TO_RUN_MS)
-        invalidate()
-    }
-
-    private fun releaseSmartX() {
-        cancelSmartXHold()
-
-        if (smartXHoldActivated) {
-            releaseKey(KeyEvent.KEYCODE_BUTTON_Y)
+        smartXLatched = !smartXLatched
+        if (smartXLatched) {
+            pressKey(KeyEvent.KEYCODE_BUTTON_Y)
         } else {
-            smartXTapReleaseRunnable?.let(handler::removeCallbacks)
-            pressKey(KeyEvent.KEYCODE_BUTTON_X)
-            val release = Runnable { releaseKey(KeyEvent.KEYCODE_BUTTON_X) }
-            smartXTapReleaseRunnable = release
-            handler.postDelayed(release, X_TAP_PULSE_MS)
+            releaseKey(KeyEvent.KEYCODE_BUTTON_Y)
         }
-
-        smartXHoldActivated = false
-        smartXPointerId = null
         invalidate()
-    }
-
-    private fun cancelSmartXHold() {
-        smartXHoldRunnable?.let(handler::removeCallbacks)
-        smartXHoldRunnable = null
     }
 
     private fun updateStick(x: Float, y: Float) {
@@ -317,7 +279,9 @@ class TouchControlsView(
         }
 
         if (smartXPointerId == id) {
-            releaseSmartX()
+            // O toque físico termina, mas o Y interno permanece latched até o próximo toque em X.
+            smartXPointerId = null
+            invalidate()
             return
         }
 
@@ -340,12 +304,9 @@ class TouchControlsView(
     }
 
     private fun releaseAll() {
-        cancelSmartXHold()
-        smartXTapReleaseRunnable?.let(handler::removeCallbacks)
-        smartXTapReleaseRunnable = null
-
-        if (smartXHoldActivated) releaseKey(KeyEvent.KEYCODE_BUTTON_Y)
-        if (KeyEvent.KEYCODE_BUTTON_X in pressedKeys) releaseKey(KeyEvent.KEYCODE_BUTTON_X)
+        if (smartXLatched || KeyEvent.KEYCODE_BUTTON_Y in pressedKeys) {
+            releaseKey(KeyEvent.KEYCODE_BUTTON_Y)
+        }
 
         (pressedKeys + stickKeys).toSet().forEach { onKey(it, false) }
         pressedKeys.clear()
@@ -353,7 +314,7 @@ class TouchControlsView(
         pointerKeys.clear()
         pointerActions.clear()
         smartXPointerId = null
-        smartXHoldActivated = false
+        smartXLatched = false
         stickPointerId = null
         stickKnobX = stickCx
         stickKnobY = stickCy
@@ -362,7 +323,6 @@ class TouchControlsView(
 
     override fun onDetachedFromWindow() {
         releaseAll()
-        handler.removeCallbacksAndMessages(null)
         super.onDetachedFromWindow()
     }
 
