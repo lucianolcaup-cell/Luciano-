@@ -77,8 +77,6 @@ class TouchControlsView(
     private val pointerActions = mutableMapOf<Int, Pair<RectF, () -> Unit>>()
     private val pressedKeys = mutableSetOf<Int>()
 
-    // X inteligente agora vive na MESMA camada multitouch de A/B/joystick.
-    // Toque curto = X real. Segurar = Y real mantido até soltar.
     private var smartXPointerId: Int? = null
     private var smartXHoldActivated = false
     private var smartXHoldRunnable: Runnable? = null
@@ -103,14 +101,15 @@ class TouchControlsView(
         val baseY = h * 0.73f
         val gap = unit * 0.95f
 
-        // Triângulo aprovado: X no topo, A/B embaixo e afastados.
-        val topY = baseY - (gap * 1.10f)
-        val bottomY = baseY + (gap * 0.62f)
-        val bottomOffsetX = gap * 1.18f
+        // v0.2.3: botões maiores, mas com a mesma folga visual entre eles.
+        val topY = baseY - (gap * 1.18f)
+        val bottomY = baseY + (gap * 0.68f)
+        val bottomOffsetX = gap * 1.25f
+        val actionRadius = unit * 0.55f
         actionButtons = listOf(
-            CircleButton(rightX, topY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_X, "X", smartX = true),
-            CircleButton(rightX - bottomOffsetX, bottomY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_A, "A"),
-            CircleButton(rightX + bottomOffsetX, bottomY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_B, "B"),
+            CircleButton(rightX, topY, actionRadius, KeyEvent.KEYCODE_BUTTON_X, "X", smartX = true),
+            CircleButton(rightX - bottomOffsetX, bottomY, actionRadius, KeyEvent.KEYCODE_BUTTON_A, "A"),
+            CircleButton(rightX + bottomOffsetX, bottomY, actionRadius, KeyEvent.KEYCODE_BUTTON_B, "B"),
         )
 
         val centerY = h * 0.915f
@@ -243,7 +242,6 @@ class TouchControlsView(
         val hold = Runnable {
             if (smartXPointerId == pointerId && !smartXHoldActivated) {
                 smartXHoldActivated = true
-                // DKC2: Y mantido = correr / pegar e SEGURAR barril-caixa / planar.
                 pressKey(KeyEvent.KEYCODE_BUTTON_Y)
             }
         }
@@ -256,10 +254,8 @@ class TouchControlsView(
         cancelSmartXHold()
 
         if (smartXHoldActivated) {
-            // Soltar Y no DKC2 arremessa o objeto carregado.
             releaseKey(KeyEvent.KEYCODE_BUTTON_Y)
         } else {
-            // Toque curto preserva o X original (ex.: desmontar Animal Buddy).
             smartXTapReleaseRunnable?.let(handler::removeCallbacks)
             pressKey(KeyEvent.KEYCODE_BUTTON_X)
             val release = Runnable { releaseKey(KeyEvent.KEYCODE_BUTTON_X) }
