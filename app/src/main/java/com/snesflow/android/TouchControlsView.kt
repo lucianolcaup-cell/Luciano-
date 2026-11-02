@@ -7,6 +7,8 @@ import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
+import android.os.Handler
+import android.os.Looper
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -21,8 +23,28 @@ class TouchControlsView(
     private val onLoad: () -> Unit,
 ) : View(context) {
 
-    private data class CircleButton(val cx: Float, val cy: Float, val r: Float, val key: Int, val label: String)
-    private data class RectButton(val rect: RectF, val key: Int?, val label: String, val action: (() -> Unit)? = null)
+    companion object {
+        private const val X_HOLD_TO_RUN_MS = 90L
+        private const val X_TAP_PULSE_MS = 70L
+    }
+
+    private data class CircleButton(
+        val cx: Float,
+        val cy: Float,
+        val r: Float,
+        val key: Int,
+        val label: String,
+        val smartX: Boolean = false,
+    )
+
+    private data class RectButton(
+        val rect: RectF,
+        val key: Int?,
+        val label: String,
+        val action: (() -> Unit)? = null,
+    )
+
+    private val handler = Handler(Looper.getMainLooper())
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(118, 18, 18, 18) }
     private val pressedFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(185, 70, 70, 70) }
@@ -55,6 +77,13 @@ class TouchControlsView(
     private val pointerActions = mutableMapOf<Int, Pair<RectF, () -> Unit>>()
     private val pressedKeys = mutableSetOf<Int>()
 
+    // X inteligente agora vive na MESMA camada multitouch de A/B/joystick.
+    // Toque curto = X real. Segurar = Y real mantido até soltar.
+    private var smartXPointerId: Int? = null
+    private var smartXHoldActivated = false
+    private var smartXHoldRunnable: Runnable? = null
+    private var smartXTapReleaseRunnable: Runnable? = null
+
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         rebuildRegions(w.toFloat(), h.toFloat())
@@ -74,10 +103,12 @@ class TouchControlsView(
         val baseY = h * 0.73f
         val gap = unit * 0.95f
 
-        // Triângulo de ação mais aberto: X no topo (GameActivity), A/B abaixo.
+        // Triângulo aprovado: X no topo, A/B embaixo e afastados.
+        val topY = baseY - (gap * 1.10f)
         val bottomY = baseY + (gap * 0.62f)
         val bottomOffsetX = gap * 1.18f
         actionButtons = listOf(
+            CircleButton(rightX, topY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_X, "X", smartX = true),
             CircleButton(rightX - bottomOffsetX, bottomY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_A, "A"),
             CircleButton(rightX + bottomOffsetX, bottomY, unit * 0.48f, KeyEvent.KEYCODE_BUTTON_B, "B"),
         )
@@ -119,7 +150,8 @@ class TouchControlsView(
         canvas.drawCircle(stickKnobX, stickKnobY, stickKnobRadius, border)
 
         actionButtons.forEach { b ->
-            canvas.drawCircle(b.cx, b.cy, b.r, if (b.key in pressedKeys) pressedFill else fill)
+            val isPressed = if (b.smartX) smartXPointerId != null else b.key in pressedKeys
+            canvas.drawCircle(b.cx, b.cy, b.r, if (isPressed) pressedFill else fill)
             canvas.drawCircle(b.cx, b.cy, b.r, border)
             text.textSize = b.r * 0.70f
             val baseline = b.cy - (text.ascent() + text.descent()) / 2
@@ -154,7 +186,7 @@ class TouchControlsView(
                         continue
                     }
 
-                    if (pointerKeys.containsKey(id)) continue
+                    if (smartXPointerId == id || pointerKeys.containsKey(id)) continue
 
                     pointerActions[id]?.let { (rect, _) ->
                         if (!rect.contains(x, y)) pointerActions.remove(id)
@@ -176,7 +208,19 @@ class TouchControlsView(
             return
         }
 
-        keyAt(x, y)?.let { key ->
+        actionButtonAt(x, y)?.let { button ->
+            if (button.smartX) {
+                pressSmartX(id)
+            } else {
+                pointerKeys[id] = button.key
+                pressKey(button.key)
+            }
+            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            return
+        }
+
+        rects.firstOrNull { it.key != null && it.rect.contains(x, y) }?.let { button ->
+            val key = requireNotNull(button.key)
             pointerKeys[id] = key
             pressKey(key)
             performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -187,6 +231,50 @@ class TouchControlsView(
             pointerActions[id] = button.rect to requireNotNull(button.action)
             performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
         }
+    }
+
+    private fun pressSmartX(pointerId: Int) {
+        if (smartXPointerId != null) return
+
+        cancelSmartXHold()
+        smartXPointerId = pointerId
+        smartXHoldActivated = false
+
+        val hold = Runnable {
+            if (smartXPointerId == pointerId && !smartXHoldActivated) {
+                smartXHoldActivated = true
+                // DKC2: Y mantido = correr / pegar e SEGURAR barril-caixa / planar.
+                pressKey(KeyEvent.KEYCODE_BUTTON_Y)
+            }
+        }
+        smartXHoldRunnable = hold
+        handler.postDelayed(hold, X_HOLD_TO_RUN_MS)
+        invalidate()
+    }
+
+    private fun releaseSmartX() {
+        cancelSmartXHold()
+
+        if (smartXHoldActivated) {
+            // Soltar Y no DKC2 arremessa o objeto carregado.
+            releaseKey(KeyEvent.KEYCODE_BUTTON_Y)
+        } else {
+            // Toque curto preserva o X original (ex.: desmontar Animal Buddy).
+            smartXTapReleaseRunnable?.let(handler::removeCallbacks)
+            pressKey(KeyEvent.KEYCODE_BUTTON_X)
+            val release = Runnable { releaseKey(KeyEvent.KEYCODE_BUTTON_X) }
+            smartXTapReleaseRunnable = release
+            handler.postDelayed(release, X_TAP_PULSE_MS)
+        }
+
+        smartXHoldActivated = false
+        smartXPointerId = null
+        invalidate()
+    }
+
+    private fun cancelSmartXHold() {
+        smartXHoldRunnable?.let(handler::removeCallbacks)
+        smartXHoldRunnable = null
     }
 
     private fun updateStick(x: Float, y: Float) {
@@ -232,6 +320,11 @@ class TouchControlsView(
             return
         }
 
+        if (smartXPointerId == id) {
+            releaseSmartX()
+            return
+        }
+
         pointerKeys.remove(id)?.let { releaseKey(it) }
         pointerActions.remove(id)?.second?.invoke()
     }
@@ -246,26 +339,39 @@ class TouchControlsView(
         invalidate()
     }
 
+    fun releaseAllInputs() {
+        releaseAll()
+    }
+
     private fun releaseAll() {
+        cancelSmartXHold()
+        smartXTapReleaseRunnable?.let(handler::removeCallbacks)
+        smartXTapReleaseRunnable = null
+
+        if (smartXHoldActivated) releaseKey(KeyEvent.KEYCODE_BUTTON_Y)
+        if (KeyEvent.KEYCODE_BUTTON_X in pressedKeys) releaseKey(KeyEvent.KEYCODE_BUTTON_X)
+
         (pressedKeys + stickKeys).toSet().forEach { onKey(it, false) }
         pressedKeys.clear()
         stickKeys.clear()
         pointerKeys.clear()
         pointerActions.clear()
+        smartXPointerId = null
+        smartXHoldActivated = false
         stickPointerId = null
         stickKnobX = stickCx
         stickKnobY = stickCy
         invalidate()
     }
 
-    private fun keyAt(x: Float, y: Float): Int? {
-        actionButtons.firstOrNull { button ->
-            hypot(x - button.cx, y - button.cy) <= button.r * 1.22f
-        }?.let { return it.key }
-
-        rects.firstOrNull { it.key != null && it.rect.contains(x, y) }?.let { return it.key }
-        return null
+    override fun onDetachedFromWindow() {
+        releaseAll()
+        handler.removeCallbacksAndMessages(null)
+        super.onDetachedFromWindow()
     }
+
+    private fun actionButtonAt(x: Float, y: Float): CircleButton? =
+        actionButtons.firstOrNull { button -> hypot(x - button.cx, y - button.cy) <= button.r * 1.22f }
 
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
 }
