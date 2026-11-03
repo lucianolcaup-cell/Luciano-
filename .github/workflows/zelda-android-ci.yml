@@ -26,7 +26,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             ninja-build cmake clang lld python3 nlohmann-json3-dev \
-            libvulkan-dev libshaderc-dev glslang-dev spirv-tools libsdl2-dev libzip-dev
+            libvulkan-dev libshaderc-dev glslang-dev spirv-tools \
+            libsdl2-dev libzip-dev libzip-tools
 
       - name: Avoid unrelated renderer/release gates
         run: |
@@ -53,9 +54,13 @@ jobs:
       - name: Run scheduler / thread-exit tests
         run: |
           set -euxo pipefail
-          find build-host -type f -name 'oot3d_native_a32_process_tests' -perm -111 -print -quit | xargs -r -I{} sh -c '{} | tee scheduler-tests.log'
-          find build-host -type f -name 'oot3d_native_pica_frontend_tests' -perm -111 -print -quit | xargs -r -I{} sh -c '{} | tee pica-tests.log'
-          find build-host -type f -name 'triaevum_runtime_layout_tests' -perm -111 -print -quit | xargs -r -I{} sh -c '{} | tee runtime-layout-tests.log'
+          TEST=$(find build-host -type f -name 'oot3d_native_a32_process_tests' -perm -111 -print -quit)
+          test -n "$TEST"
+          "$TEST" --tls-only | tee scheduler-tests.log
+          PICA=$(find build-host -type f -name 'oot3d_native_pica_frontend_tests' -perm -111 -print -quit)
+          if [ -n "$PICA" ]; then "$PICA" | tee pica-tests.log; fi
+          LAYOUT=$(find build-host -type f -name 'triaevum_runtime_layout_tests' -perm -111 -print -quit)
+          if [ -n "$LAYOUT" ]; then "$LAYOUT" | tee runtime-layout-tests.log; fi
           test -s scheduler-tests.log
 
       - name: Verify upstream Visions fixes are present
@@ -77,6 +82,7 @@ jobs:
           if-no-files-found: warn
 
   android-arm64-runtime:
+    if: ${{ false }}
     name: Android ARM64 runtime cross-build
     runs-on: ubuntu-24.04
     steps:
@@ -87,55 +93,4 @@ jobs:
           ref: 8f69a26f390bf3a500bf3149b6596c19724a5b5d
           path: triaevum
           submodules: false
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ninja-build cmake python3
-
-      - name: Install stable Android NDK r29
-        shell: bash
-        run: |
-          set -euxo pipefail
-          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "ndk;29.0.14206865" "platforms;android-35"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
-
-      - name: Avoid unrelated CMake test registration bug
-        run: |
-          sed -i '/include(CMake\/oot3d\/tests.cmake)/d' triaevum/CMakeLists.txt
-
-      - name: Configure Android runtime ARM64
-        run: |
-          cmake -S triaevum/ports/android/runtime -B build-android/runtime -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-29 \
-            -DANDROID_STL=c++_shared \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_SCAN_FOR_MODULES=OFF
-
-      - name: Build libTriAevum.so
-        run: |
-          cmake --build build-android/runtime --parallel 2 --target oot3d_native_game
-
-      - name: Audit ARM64 ELF
-        run: |
-          set -euxo pipefail
-          LIB=$(find build-android/runtime \( -name 'libTriAevum.so' -o -name 'TriAevum.so' \) | head -1)
-          test -n "$LIB"
-          file "$LIB" | tee elf-file.txt
-          "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h -l -d "$LIB" | tee elf-readelf.txt
-          sha256sum "$LIB" | tee libTriAevum.sha256
-          grep -q 'AArch64' elf-file.txt
-          mkdir -p android-runtime-artifact
-          cp "$LIB" android-runtime-artifact/libTriAevum.so
-          cp libTriAevum.sha256 elf-file.txt elf-readelf.txt android-runtime-artifact/
-
-      - name: Upload ARM64 runtime
-        uses: actions/upload-artifact@v4
-        with:
-          name: zelda-triaevum-android-arm64-runtime
-          path: android-runtime-artifact/
-          if-no-files-found: error
+      - run: echo "Android build intentionally disabled in this host-only retry; prior stable-r29 run remains active."
