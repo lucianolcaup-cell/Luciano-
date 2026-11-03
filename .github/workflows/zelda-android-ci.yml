@@ -24,7 +24,7 @@ jobs:
       - name: Install host build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ninja-build cmake clang lld python3 nlohmann-json3-dev
+          sudo apt-get install -y --no-install-recommends ninja-build cmake clang lld python3 nlohmann-json3-dev libvulkan-dev
 
       - name: Configure host runtime tests
         run: |
