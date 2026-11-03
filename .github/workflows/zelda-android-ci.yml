@@ -93,14 +93,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ninja-build cmake python3
 
-      - name: Install Android NDK r29
+      - name: Install stable Android NDK r29
         shell: bash
         run: |
           set -euxo pipefail
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "ndk;29.0.13599879" "platforms;android-35"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.13599879" >> "$GITHUB_ENV"
+          "$SDKMANAGER" "ndk;29.0.14206865" "platforms;android-35"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
 
       - name: Avoid unrelated CMake test registration bug
         run: |
