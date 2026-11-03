@@ -1,0 +1,128 @@
+name: Zelda Android Runtime CI Lab
+
+on:
+  push:
+    branches: [zelda-android-ci-lab]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scheduler-tests:
+    name: Scheduler / Visions logic tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout upstream TriAevum
+        uses: actions/checkout@v4
+        with:
+          repository: coccofresco/TriAevum
+          ref: 8f69a26f390bf3a500bf3149b6596c19724a5b5d
+          path: triaevum
+          submodules: false
+
+      - name: Install host build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build cmake clang lld python3 nlohmann-json3-dev
+
+      - name: Configure host runtime tests
+        run: |
+          cmake -S triaevum -B build-host -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DOOT3D_DIRECT_AOT_PLUGIN=ON
+
+      - name: Build scheduler and runtime tests
+        run: |
+          cmake --build build-host --parallel 2 --target \
+            oot3d_native_a32_process_tests \
+            oot3d_native_pica_frontend_tests \
+            triaevum_runtime_layout_tests
+
+      - name: Run scheduler / thread-exit tests
+        run: |
+          set -euxo pipefail
+          build-host/oot3d_native_a32_process_tests | tee scheduler-tests.log
+          build-host/oot3d_native_pica_frontend_tests | tee pica-tests.log
+          build-host/triaevum_runtime_layout_tests | tee runtime-layout-tests.log
+
+      - name: Verify upstream Visions fixes are present
+        run: |
+          set -euxo pipefail
+          grep -R "ResolveStoppedThreadRunKind" -n triaevum/tools/oot3d/native_game_runtime/oot3d_native_a32_process.*
+          grep -R "backgroundQuantum = 10'000U" -n triaevum/tools/oot3d/native_game_runtime/oot3d_native_a32_process.cpp
+          grep -R "TopScreenVisionsRuntime" -n triaevum/tools/oot3d | head -20
+
+      - name: Upload host test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zelda-runtime-host-test-evidence
+          path: |
+            scheduler-tests.log
+            pica-tests.log
+            runtime-layout-tests.log
+          if-no-files-found: warn
+
+  android-arm64-runtime:
+    name: Android ARM64 runtime cross-build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout upstream TriAevum
+        uses: actions/checkout@v4
+        with:
+          repository: coccofresco/TriAevum
+          ref: 8f69a26f390bf3a500bf3149b6596c19724a5b5d
+          path: triaevum
+          submodules: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build cmake python3
+
+      - name: Install Android NDK r29
+        shell: bash
+        run: |
+          set -euxo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "ndk;29.0.13599879" "platforms;android-35"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.13599879" >> "$GITHUB_ENV"
+
+      - name: Configure Android runtime ARM64
+        run: |
+          cmake -S triaevum/ports/android/runtime -B build-android/runtime -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-29 \
+            -DANDROID_STL=c++_shared \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_SCAN_FOR_MODULES=OFF
+
+      - name: Build libTriAevum.so and Android PICA tests
+        run: |
+          cmake --build build-android/runtime --parallel 2 --target \
+            oot3d_native_game \
+            oot3d_native_pica_frontend_tests
+
+      - name: Audit ARM64 ELF
+        run: |
+          set -euxo pipefail
+          LIB=$(find build-android/runtime -name 'libTriAevum.so' -o -name 'TriAevum.so' | head -1)
+          test -n "$LIB"
+          file "$LIB" | tee elf-file.txt
+          "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h -l -d "$LIB" | tee elf-readelf.txt
+          sha256sum "$LIB" | tee libTriAevum.sha256
+          mkdir -p android-runtime-artifact
+          cp "$LIB" android-runtime-artifact/libTriAevum.so
+          cp libTriAevum.sha256 elf-file.txt elf-readelf.txt android-runtime-artifact/
+
+      - name: Upload ARM64 runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: zelda-triaevum-android-arm64-runtime
+          path: android-runtime-artifact/
+          if-no-files-found: error
