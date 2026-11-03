@@ -1,5 +1,6 @@
 name: Zelda Android ARM64 Runtime Build
 
+# Diagnostic ARM64 build for Zelda/TriAevum runtime.
 on:
   push:
     branches: [zelda-android-ci-lab]
