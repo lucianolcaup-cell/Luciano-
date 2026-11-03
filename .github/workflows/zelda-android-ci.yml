@@ -24,7 +24,9 @@ jobs:
       - name: Install host build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ninja-build cmake clang lld python3 nlohmann-json3-dev libvulkan-dev
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build cmake clang lld python3 nlohmann-json3-dev \
+            libvulkan-dev libshaderc-dev glslang-dev spirv-tools
 
       - name: Configure host runtime tests
         run: |
@@ -111,7 +113,7 @@ jobs:
       - name: Audit ARM64 ELF
         run: |
           set -euxo pipefail
-          LIB=$(find build-android/runtime -name 'libTriAevum.so' -o -name 'TriAevum.so' | head -1)
+          LIB=$(find build-android/runtime \( -name 'libTriAevum.so' -o -name 'TriAevum.so' \) | head -1)
           test -n "$LIB"
           file "$LIB" | tee elf-file.txt
           "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -h -l -d "$LIB" | tee elf-readelf.txt
